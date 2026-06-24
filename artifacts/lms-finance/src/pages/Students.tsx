@@ -241,6 +241,7 @@ type FormData = CreateStudentInput & {
   openingPendingAmount?: number;
   openingPresentDays?: number;
   openingAbsentDays?: number;
+  openingMonthsPaid?: number;
 };
 
 function StudentFormDialog({
@@ -272,6 +273,7 @@ function StudentFormDialog({
           openingPendingAmount: (student as any).openingPendingAmount ?? 0,
           openingPresentDays: (student as any).openingPresentDays ?? 0,
           openingAbsentDays: (student as any).openingAbsentDays ?? 0,
+          openingMonthsPaid: (student as any).openingMonthsPaid ?? 0,
         }
       : {
           status: "active",
@@ -281,6 +283,7 @@ function StudentFormDialog({
           openingPendingAmount: 0,
           openingPresentDays: 0,
           openingAbsentDays: 0,
+          openingMonthsPaid: 0,
         },
   });
 
@@ -302,6 +305,7 @@ function StudentFormDialog({
             openingPendingAmount: (student as any).openingPendingAmount ?? 0,
             openingPresentDays: (student as any).openingPresentDays ?? 0,
             openingAbsentDays: (student as any).openingAbsentDays ?? 0,
+            openingMonthsPaid: (student as any).openingMonthsPaid ?? 0,
           }
         : {
             status: "active",
@@ -311,6 +315,7 @@ function StudentFormDialog({
             openingPendingAmount: 0,
             openingPresentDays: 0,
             openingAbsentDays: 0,
+            openingMonthsPaid: 0,
           }
       );
     }
@@ -319,6 +324,7 @@ function StudentFormDialog({
   const selectedCourseId = watch("courseId");
   const enrollmentDate = watch("enrollmentDate");
   const discountAmount = watch("discountAmount") ?? 0;
+  const openingMonthsPaid = watch("openingMonthsPaid") ?? 0;
   const selectedCourse = courses.find((c) => c.id === Number(selectedCourseId));
 
   const endDate = selectedCourse && enrollmentDate
@@ -355,6 +361,7 @@ function StudentFormDialog({
       openingPendingAmount: Number(data.openingPendingAmount ?? 0),
       openingPresentDays: Number(data.openingPresentDays ?? 0),
       openingAbsentDays: Number(data.openingAbsentDays ?? 0),
+      openingMonthsPaid: Number(data.openingMonthsPaid ?? 0),
     };
     if (student) {
       updateMutation.mutate({ id: student.id, data: payload as UpdateStudentInput }, { onSuccess });
@@ -500,24 +507,53 @@ function StudentFormDialog({
             )}
 
             {/* Opening Balance / Migration Data */}
-            <div className="border border-dashed border-border rounded-lg p-4 space-y-3 bg-muted/10">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Opening Balance (Migration / Historical)</p>
-              <p className="text-xs text-muted-foreground">Fill this only for existing students being migrated into the system.</p>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="border border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 space-y-3 bg-amber-50/50 dark:bg-amber-950/10">
+              <div className="flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Opening Balance — Migration from Previous System</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Use this section when enrolling students who were already in the previous system. The system will skip generating vouchers for months already paid.</p>
+
+              {/* Months already paid — most important field */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Months Already Paid (before switching to this system)</Label>
+                <Input
+                  type="number" min="0"
+                  max={selectedCourse?.durationMonths ?? 99}
+                  {...register("openingMonthsPaid", { valueAsNumber: true })}
+                  placeholder="0"
+                  className="max-w-[120px]"
+                />
+                {selectedCourse && Number(openingMonthsPaid) > 0 && (
+                  <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs space-y-0.5">
+                    <div className="font-semibold text-amber-700 dark:text-amber-400">
+                      ✓ Months 1–{openingMonthsPaid} are marked as already paid
+                    </div>
+                    <div className="text-muted-foreground">
+                      System will start generating fee vouchers from <strong>Month {Number(openingMonthsPaid) + 1}</strong> onward
+                      {selectedCourse.durationMonths - Number(openingMonthsPaid) > 0
+                        ? ` (${selectedCourse.durationMonths - Number(openingMonthsPaid)} months remaining)`
+                        : " — course fully paid"}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
-                  <Label className="text-xs">Paid Amount (PKR)</Label>
+                  <Label className="text-xs">Paid Amount (PKR) — total previously paid</Label>
                   <Input type="number" min="0" step="1" {...register("openingPaidAmount", { valueAsNumber: true })} placeholder="0" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Pending Amount (PKR)</Label>
+                  <Label className="text-xs">Pending Amount (PKR) — carried forward dues</Label>
                   <Input type="number" min="0" step="1" {...register("openingPendingAmount", { valueAsNumber: true })} placeholder="0" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Present Days</Label>
+                  <Label className="text-xs">Present Days (historical)</Label>
                   <Input type="number" min="0" {...register("openingPresentDays", { valueAsNumber: true })} placeholder="0" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Absent Days</Label>
+                  <Label className="text-xs">Absent Days (historical)</Label>
                   <Input type="number" min="0" {...register("openingAbsentDays", { valueAsNumber: true })} placeholder="0" />
                 </div>
               </div>

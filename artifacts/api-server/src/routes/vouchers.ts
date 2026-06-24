@@ -109,6 +109,17 @@ router.post("/vouchers/generate", async (req, res) => {
         details.push({ studentId: student.id, studentName: student.name, studentCode: student.studentCode, status: "skipped", reason: `Beyond course duration (${course.durationMonths} month(s) max — only ${course.durationMonths} voucher(s) allowed)` });
         continue;
       }
+
+      // Skip months already covered by opening balance (migration)
+      const openingMonthsPaid = Number(student.openingMonthsPaid ?? 0);
+      if (openingMonthsPaid > 0) {
+        const voucherMonthIndex = voucherMonthYear - enrollMonthYear; // 0-based: 0 = first month
+        if (voucherMonthIndex < openingMonthsPaid) {
+          skipped++;
+          details.push({ studentId: student.id, studentName: student.name, studentCode: student.studentCode, status: "skipped", reason: `Month ${voucherMonthIndex + 1} already paid before system migration (opening balance: ${openingMonthsPaid} month${openingMonthsPaid > 1 ? "s" : ""} paid)` });
+          continue;
+        }
+      }
     }
 
     const [existing] = await db

@@ -42,6 +42,18 @@ description: Key decisions for the RBAC system, instructor class assignment, stu
 - `POST /student-attendance/bulk` — batch save attendance for a class (upsert)
 - `GET /student-attendance/summary/:studentId` — attendance stats including opening balance days
 
+## Migration / Opening Balance Logic
+
+- `openingMonthsPaid` (integer, default 0) on `students` table
+- Voucher generation in `vouchers.ts` skips any month whose index (0-based from enrollment) is < `openingMonthsPaid`
+- Example: student enrolled Jan, `openingMonthsPaid=1` → Jan voucher is skipped, Feb+ are generated
+- Students form shows live feedback: "Months 1–N already paid, starting from month N+1"
+
+## Voucher Print
+
+- `printVoucher.ts` renders 2 copies (Student Copy + Office Copy) on one page with a dashed cut line
+- Layout: navy header bar with TIPS logo + org name + voucher badge, info grid, 4 fee boxes, payment history table, signature lines
+
 ## DB Schema Push
 
 Run `pnpm --filter @workspace/db run push` after any schema changes. The `drizzle.config.ts` is in `lib/db/`.

@@ -24,6 +24,7 @@ export const studentsTable = pgTable("students", {
   openingPendingAmount: numeric("opening_pending_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   openingPresentDays: integer("opening_present_days").notNull().default(0),
   openingAbsentDays: integer("opening_absent_days").notNull().default(0),
+  openingMonthsPaid: integer("opening_months_paid").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

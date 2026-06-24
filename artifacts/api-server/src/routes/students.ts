@@ -79,7 +79,7 @@ router.post("/students", requireAdminOrStaff, async (req, res) => {
   const {
     name, courseId, classId, fatherName, phone, address, status,
     enrollmentDate, batchStartDate, discountAmount,
-    openingPaidAmount, openingPendingAmount, openingPresentDays, openingAbsentDays,
+    openingPaidAmount, openingPendingAmount, openingPresentDays, openingAbsentDays, openingMonthsPaid,
   } = req.body;
 
   if (!name || !courseId || !enrollmentDate) {
@@ -121,6 +121,7 @@ router.post("/students", requireAdminOrStaff, async (req, res) => {
       openingPendingAmount: String(openingPendingAmount ?? "0"),
       openingPresentDays: Number(openingPresentDays ?? 0),
       openingAbsentDays: Number(openingAbsentDays ?? 0),
+      openingMonthsPaid: Number(openingMonthsPaid ?? 0),
     })
     .returning();
 
@@ -182,6 +183,7 @@ router.put("/students/:id", requireAdminOrStaff, async (req, res) => {
   if (body.openingPendingAmount !== undefined) updateData.openingPendingAmount = String(body.openingPendingAmount);
   if (body.openingPresentDays !== undefined) updateData.openingPresentDays = Number(body.openingPresentDays);
   if (body.openingAbsentDays !== undefined) updateData.openingAbsentDays = Number(body.openingAbsentDays);
+  if (body.openingMonthsPaid !== undefined) updateData.openingMonthsPaid = Number(body.openingMonthsPaid);
 
   // Class assignment
   if (body.classId !== undefined) {
@@ -318,6 +320,7 @@ export function toStudentResponse(
     openingPendingAmount: parseFloat(s.openingPendingAmount as string ?? "0"),
     openingPresentDays: s.openingPresentDays ?? 0,
     openingAbsentDays: s.openingAbsentDays ?? 0,
+    openingMonthsPaid: s.openingMonthsPaid ?? 0,
     createdAt: s.createdAt.toISOString(),
   };
 }
