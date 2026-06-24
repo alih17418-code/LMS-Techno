@@ -2,21 +2,35 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: LMS Finance & Voucher Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: courses
+    description: Course management
+  - name: students
+    description: Student management
+  - name: fee-structures
+    description: Fee structure management (legacy)
+  - name: vouchers
+    description: Voucher management
+  - name: receipts
+    description: Receipt/payment management
+  - name: reports
+    description: Financial reports
+  - name: instructors
+    description: Instructor management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +38,884 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Courses ────────────────────────────────────────────────────────────────
+  /courses:
+    get:
+      operationId: listCourses
+      tags: [courses]
+      summary: List all courses
+      responses:
+        "200":
+          description: List of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Course"
+    post:
+      operationId: createCourse
+      tags: [courses]
+      summary: Create a new course
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseInput"
+      responses:
+        "201":
+          description: Course created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /courses/{id}:
+    get:
+      operationId: getCourse
+      tags: [courses]
+      summary: Get a course by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateCourse
+      tags: [courses]
+      summary: Update a course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseInput"
+      responses:
+        "200":
+          description: Updated course
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCourse
+      tags: [courses]
+      summary: Delete a course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Cannot delete course with active students
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Students ──────────────────────────────────────────────────────────────
+  /students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: List all students
+      parameters:
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: course
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: search
+          in: query
+          schema:
+            type: string
+            description: Search by name, studentCode, or phone
+      responses:
+        "200":
+          description: List of students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Student"
+    post:
+      operationId: createStudent
+      tags: [students]
+      summary: Create a student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStudentInput"
+      responses:
+        "201":
+          description: Student created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /students/{id}:
+    get:
+      operationId: getStudent
+      tags: [students]
+      summary: Get a student by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Student
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateStudent
+      tags: [students]
+      summary: Update a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStudentInput"
+      responses:
+        "200":
+          description: Updated student
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteStudent
+      tags: [students]
+      summary: Delete a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /students/{id}/ledger:
+    get:
+      operationId: getStudentLedger
+      tags: [students]
+      summary: Get complete financial ledger for a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Student ledger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentLedger"
+
+  # ── Fee Structures (legacy) ─────────────────────────────────────────────────────────
+  /fee-structures:
+    get:
+      operationId: listFeeStructures
+      tags: [fee-structures]
+      summary: List all fee structures (legacy)
+      responses:
+        "200":
+          description: Fee structures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeeStructure"
+    post:
+      operationId: createFeeStructure
+      tags: [fee-structures]
+      summary: Create a fee structure (legacy)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFeeStructureInput"
+      responses:
+        "201":
+          description: Fee structure created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeStructure"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /fee-structures/{id}:
+    put:
+      operationId: updateFeeStructure
+      tags: [fee-structures]
+      summary: Update a fee structure (legacy)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFeeStructureInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeStructure"
+    delete:
+      operationId: deleteFeeStructure
+      tags: [fee-structures]
+      summary: Delete a fee structure (legacy)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Vouchers ───────────────────────────────────────────────────────────────
+  /vouchers:
+    get:
+      operationId: listVouchers
+      tags: [vouchers]
+      summary: List vouchers with optional filters
+      parameters:
+        - name: studentId
+          in: query
+          schema:
+            type: integer
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: course
+          in: query
+          schema:
+            type: string
+        - name: month
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unpaid, partial, paid]
+      responses:
+        "200":
+          description: List of vouchers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Voucher"
+
+  /vouchers/generate:
+    post:
+      operationId: generateVouchers
+      tags: [vouchers]
+      summary: Generate monthly vouchers for a course (class-wise)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateVouchersInput"
+      responses:
+        "200":
+          description: Generation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateVouchersResult"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vouchers/{id}:
+    get:
+      operationId: getVoucher
+      tags: [vouchers]
+      summary: Get a voucher by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Voucher
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voucher"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteVoucher
+      tags: [vouchers]
+      summary: Delete a voucher (only if no receipts)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Cannot delete voucher with payments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Receipts ───────────────────────────────────────────────────────────────
+  /receipts:
+    get:
+      operationId: listReceipts
+      tags: [receipts]
+      summary: List receipts with filters
+      parameters:
+        - name: voucherId
+          in: query
+          schema:
+            type: integer
+        - name: studentId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Receipt"
+    post:
+      operationId: createReceipt
+      tags: [receipts]
+      summary: Record a payment against a voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReceiptInput"
+      responses:
+        "201":
+          description: Receipt created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+        "400":
+          description: Validation error (overpayment, already paid, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /receipts/{id}:
+    get:
+      operationId: getReceipt
+      tags: [receipts]
+      summary: Get a receipt by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Reports ────────────────────────────────────────────────────────────────
+  /reports/dashboard:
+    get:
+      operationId: getDashboardSummary
+      tags: [reports]
+      summary: Overall financial dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /reports/monthly:
+    get:
+      operationId: getMonthlyReport
+      tags: [reports]
+      summary: Month-wise financial report
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: course
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Monthly report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReport"
+
+  /reports/class-wise:
+    get:
+      operationId: getClassWiseReport
+      tags: [reports]
+      summary: Class-wise financial report
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class-wise report
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClassWiseReport"
+
+  /reports/student-wise:
+    get:
+      operationId: getStudentWiseReport
+      tags: [reports]
+      summary: Student-wise financial report
+      parameters:
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: course
+          in: query
+          schema:
+            type: string
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [paid, partial, unpaid]
+      responses:
+        "200":
+          description: Student-wise report
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentWiseReport"
+
+  /reports/receipts:
+    get:
+      operationId: getReceiptReport
+      tags: [reports]
+      summary: Receipt-level report
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: course
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt report
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReceiptReportRow"
+
+  # ── Instructors ─────────────────────────────────────────────────────────────
+  /instructors:
+    get:
+      operationId: listInstructors
+      tags: [instructors]
+      summary: List all instructors
+      parameters:
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of instructors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Instructor"
+    post:
+      operationId: createInstructor
+      tags: [instructors]
+      summary: Create a new instructor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstructorInput"
+      responses:
+        "201":
+          description: Instructor created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instructor"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /instructors/{id}:
+    get:
+      operationId: getInstructor
+      tags: [instructors]
+      summary: Get instructor detail with payment history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Instructor detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateInstructor
+      tags: [instructors]
+      summary: Update an instructor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstructorInput"
+      responses:
+        "200":
+          description: Updated instructor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instructor"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteInstructor
+      tags: [instructors]
+      summary: Delete an instructor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /instructor-payments:
+    get:
+      operationId: listInstructorPayments
+      tags: [instructors]
+      summary: List instructor salary payments
+      parameters:
+        - name: instructorId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InstructorPayment"
+    post:
+      operationId: createInstructorPayment
+      tags: [instructors]
+      summary: Record a salary payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstructorPaymentInput"
+      responses:
+        "201":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorPayment"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /instructor-payments/{id}:
+    delete:
+      operationId: deleteInstructorPayment
+      tags: [instructors]
+      summary: Delete a salary payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +923,747 @@ components:
       properties:
         status:
           type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error, message]
+
+    # ── Course ────────────────────────────────────────────────────────────────
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        durationMonths:
+          type: integer
+        monthlyFee:
+          type: number
+        totalFee:
+          type: number
+          description: monthlyFee * durationMonths
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, code, durationMonths, monthlyFee, totalFee, createdAt]
+
+    CreateCourseInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+        durationMonths:
+          type: integer
+          minimum: 1
+        monthlyFee:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+      required: [name, code, durationMonths, monthlyFee]
+
+    UpdateCourseInput:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        durationMonths:
+          type: integer
+          minimum: 1
+        monthlyFee:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+
+    # ── Student ──────────────────────────────────────────────────────────────
+    Student:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentCode:
+          type: string
+          description: Auto-generated 6-digit code e.g. 100001
+        name:
+          type: string
+        course:
+          type: string
+          description: Course name (denormalized)
+        courseId:
+          type: integer
+        fatherName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        enrollmentDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          description: Auto-calculated from enrollmentDate + course.durationMonths
+        discountAmount:
+          type: number
+          description: Monthly discount applied to this student
+        effectiveFee:
+          type: number
+          description: monthlyFee - discountAmount
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, studentCode, name, course, courseId, status, enrollmentDate, createdAt]
+
+    CreateStudentInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        courseId:
+          type: integer
+          description: ID of the course from /courses
+        fatherName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+        enrollmentDate:
+          type: string
+          format: date
+        discountAmount:
+          type: number
+          minimum: 0
+          default: 0
+      required: [name, courseId, enrollmentDate]
+
+    UpdateStudentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        courseId:
+          type: integer
+        fatherName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        enrollmentDate:
+          type: string
+          format: date
+        discountAmount:
+          type: number
+          minimum: 0
+
+    StudentLedger:
+      type: object
+      properties:
+        student:
+          $ref: "#/components/schemas/Student"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+        totalFee:
+          type: number
+        totalReceived:
+          type: number
+        totalPending:
+          type: number
+      required: [student, entries, totalFee, totalReceived, totalPending]
+
+    LedgerEntry:
+      type: object
+      properties:
+        voucherId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        monthName:
+          type: string
+        fee:
+          type: number
+        received:
+          type: number
+        pending:
+          type: number
+        status:
+          type: string
+          enum: [unpaid, partial, paid]
+      required: [voucherId, month, year, monthName, fee, received, pending, status]
+
+    # ── Fee Structure (legacy) ───────────────────────────────────────────────
+    FeeStructure:
+      type: object
+      properties:
+        id:
+          type: integer
+        course:
+          type: string
+        monthlyFee:
+          type: number
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, course, monthlyFee, createdAt]
+
+    CreateFeeStructureInput:
+      type: object
+      properties:
+        course:
+          type: string
+        monthlyFee:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+      required: [course, monthlyFee]
+
+    # ── Voucher ──────────────────────────────────────────────────────────────
+    Voucher:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        studentCode:
+          type: string
+        studentRollNumber:
+          type: string
+        course:
+          type: string
+        courseId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        monthName:
+          type: string
+        voucherType:
+          type: string
+          enum: [monthly]
+        totalFee:
+          type: number
+        totalReceived:
+          type: number
+        pendingAmount:
+          type: number
+        status:
+          type: string
+          enum: [unpaid, partial, paid]
+        createdAt:
+          type: string
+          format: date-time
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Receipt"
       required:
+        - id
+        - studentId
+        - studentName
+        - studentCode
+        - course
+        - courseId
+        - month
+        - year
+        - monthName
+        - voucherType
+        - totalFee
+        - totalReceived
+        - pendingAmount
+        - status
+        - createdAt
+
+    GenerateVouchersInput:
+      type: object
+      properties:
+        courseId:
+          type: integer
+          description: ID of the course to generate vouchers for
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+      required: [courseId, month, year]
+
+    GenerateVouchersResult:
+      type: object
+      properties:
+        generated:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: integer
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              studentId:
+                type: integer
+              studentName:
+                type: string
+              status:
+                type: string
+              reason:
+                type: string
+            required: [studentId, studentName, status]
+      required: [generated, skipped, errors, details]
+
+    # ── Receipt ───────────────────────────────────────────────────────────────
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptNumber:
+          type: string
+        voucherId:
+          type: integer
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        studentCode:
+          type: string
+        course:
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        amountReceived:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [cash, bank_transfer, cheque, online]
+        remarks:
+          type: string
+        paymentDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - receiptNumber
+        - voucherId
+        - studentId
+        - studentName
+        - studentCode
+        - course
+        - month
+        - year
+        - amountReceived
+        - paymentMethod
+        - paymentDate
+        - createdAt
+
+    CreateReceiptInput:
+      type: object
+      properties:
+        voucherId:
+          type: integer
+        amountReceived:
+          type: number
+          minimum: 0.01
+        paymentMethod:
+          type: string
+          enum: [cash, bank_transfer, cheque, online]
+        remarks:
+          type: string
+        paymentDate:
+          type: string
+          format: date
+      required: [voucherId, amountReceived, paymentMethod, paymentDate]
+
+    # ── Reports ───────────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        totalStudents:
+          type: integer
+        activeStudents:
+          type: integer
+        totalFeeGenerated:
+          type: number
+        totalReceived:
+          type: number
+        totalPending:
+          type: number
+        paidVouchers:
+          type: integer
+        partialVouchers:
+          type: integer
+        unpaidVouchers:
+          type: integer
+        recentReceipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Receipt"
+        courseBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassWiseReport"
+      required:
+        - totalStudents
+        - activeStudents
+        - totalFeeGenerated
+        - totalReceived
+        - totalPending
+        - paidVouchers
+        - partialVouchers
+        - unpaidVouchers
+
+    MonthlyReport:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        monthName:
+          type: string
+        course:
+          type: string
+          nullable: true
+        totalStudents:
+          type: integer
+        totalFeeGenerated:
+          type: number
+        totalReceived:
+          type: number
+        totalPending:
+          type: number
+        paidCount:
+          type: integer
+        partialCount:
+          type: integer
+        unpaidCount:
+          type: integer
+        vouchers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Voucher"
+      required:
+        - month
+        - year
+        - monthName
+        - totalStudents
+        - totalFeeGenerated
+        - totalReceived
+        - totalPending
+        - paidCount
+        - partialCount
+        - unpaidCount
+
+    ClassWiseReport:
+      type: object
+      properties:
+        course:
+          type: string
+        courseId:
+          type: integer
+        totalStudents:
+          type: integer
+        totalFeeGenerated:
+          type: number
+        totalReceived:
+          type: number
+        totalPending:
+          type: number
+        paidCount:
+          type: integer
+        partialCount:
+          type: integer
+        unpaidCount:
+          type: integer
+      required:
+        - course
+        - courseId
+        - totalStudents
+        - totalFeeGenerated
+        - totalReceived
+        - totalPending
+        - paidCount
+        - partialCount
+        - unpaidCount
+
+    StudentWiseReport:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        studentCode:
+          type: string
+        rollNumber:
+          type: string
+        course:
+          type: string
+        totalFee:
+          type: number
+        totalReceived:
+          type: number
+        totalPending:
+          type: number
+        status:
+          type: string
+      required:
+        - studentId
+        - studentName
+        - studentCode
+        - course
+        - totalFee
+        - totalReceived
+        - totalPending
         - status
 
+    ReceiptReportRow:
+      type: object
+      properties:
+        receiptNumber:
+          type: string
+        studentName:
+          type: string
+        studentCode:
+          type: string
+        course:
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        monthName:
+          type: string
+        amountReceived:
+          type: number
+        paymentMethod:
+          type: string
+        paymentDate:
+          type: string
+          format: date
+        remarks:
+          type: string
+      required:
+        - receiptNumber
+        - studentName
+        - studentCode
+        - course
+        - month
+        - year
+        - monthName
+        - amountReceived
+        - paymentMethod
+        - paymentDate
+
+    # ── Instructor ─────────────────────────────────────────────────────────────
+    Instructor:
+      type: object
+      properties:
+        id:
+          type: integer
+        instructorCode:
+          type: string
+        name:
+          type: string
+        fatherName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        specialization:
+          type: string
+        courseId:
+          type: integer
+        courseName:
+          type: string
+        monthlySalary:
+          type: number
+        joinDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - instructorCode
+        - name
+        - monthlySalary
+        - joinDate
+        - status
+        - createdAt
+
+    InstructorDetail:
+      allOf:
+        - $ref: "#/components/schemas/Instructor"
+        - type: object
+          properties:
+            payments:
+              type: array
+              items:
+                $ref: "#/components/schemas/InstructorPayment"
+          required: [payments]
+
+    CreateInstructorInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        fatherName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        specialization:
+          type: string
+        courseId:
+          type: integer
+          nullable: true
+        monthlySalary:
+          type: number
+          minimum: 0
+        joinDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, inactive]
+      required:
+        - name
+        - monthlySalary
+        - joinDate
+
+    InstructorPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        paymentNumber:
+          type: string
+        instructorId:
+          type: integer
+        instructorName:
+          type: string
+        instructorCode:
+          type: string
+        specialization:
+          type: string
+        courseName:
+          type: string
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+        monthName:
+          type: string
+        amountPaid:
+          type: number
+        paymentMethod:
+          type: string
+        paymentDate:
+          type: string
+          format: date
+        remarks:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - paymentNumber
+        - instructorId
+        - instructorName
+        - instructorCode
+        - month
+        - year
+        - monthName
+        - amountPaid
+        - paymentMethod
+        - paymentDate
+        - createdAt
+
+    CreateInstructorPaymentInput:
+      type: object
+      properties:
+        instructorId:
+          type: integer
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+        amountPaid:
+          type: number
+          minimum: 0
+        paymentMethod:
+          type: string
+          enum: [cash, bank_transfer, cheque, online]
+        paymentDate:
+          type: string
+          format: date
+        remarks:
+          type: string
+      required:
+        - instructorId
+        - month
+        - year
+        - amountPaid
+        - paymentMethod
+        - paymentDate
