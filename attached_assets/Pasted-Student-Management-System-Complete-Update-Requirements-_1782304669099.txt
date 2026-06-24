@@ -1,0 +1,382 @@
+Student Management System – Complete Update Requirements
+
+Update the existing system with the following changes. Keep all current functionality, design, and workflows unchanged unless specifically mentioned below.
+
+1. Role-Based Access Control (RBAC)
+
+Currently Admin, Staff, and Instructor have similar access and dashboards. This must be separated properly.
+
+Admin Role (Full System Access)
+
+Admin has complete control over the entire system.
+
+Admin Can:
+Student Management
+Add students
+Edit students
+Delete students
+View all students
+View student history
+Manage student records
+Class Management
+Add classes
+Edit classes
+Delete classes
+View all classes
+Instructor Management
+Add instructors
+Edit instructors
+Delete instructors
+Assign multiple classes to instructors
+Change instructor assignments
+Staff Management
+Add staff
+Edit staff
+Delete staff
+Attendance Management
+View all attendance
+Edit attendance
+Manage attendance records
+Fee Management
+Add fee records
+Edit fee records
+Delete fee records
+Record payments
+Reports & Analytics
+View Total Students
+View Total Classes
+View Total Instructors
+View Total Revenue Generated
+View Total Revenue Received
+View Total Pending Revenue
+View Monthly Reports
+View Attendance Reports
+View Financial Reports
+System Management
+Full settings access
+User role management
+Database management features
+All permissions
+Staff Role (Limited Operations Access)
+
+Staff should help manage daily operations but should not have access to sensitive financial summaries or deletion permissions.
+
+Staff Can:
+Student Management
+Add students
+Edit students
+View students
+Class Management
+Add classes
+Edit classes
+View classes
+Instructor Management
+Add instructors
+Edit instructors
+View instructors
+Attendance
+Manage attendance
+View attendance records
+Fees
+Record fee payments
+Update fee status
+Staff Cannot:
+Delete students
+Delete classes
+Delete instructors
+Delete staff
+Delete fee records
+Access system settings
+Manage user permissions
+View Total Revenue Generated
+View Total Revenue Received
+View Total Pending Revenue
+Access financial analytics
+
+All restricted menu items should be hidden from Staff.
+
+Instructor Role (Dedicated Instructor Portal)
+
+Instructor should have a separate dashboard and portal.
+
+Instructor should only see information related to assigned classes.
+
+Instructor Can View
+Assigned Classes
+View assigned classes only
+Cannot view classes assigned to other instructors
+Students
+View students in assigned classes
+View student attendance history
+View class statistics
+Attendance
+Check-In attendance
+Check-Out attendance
+Mark attendance
+View attendance history
+View attendance summaries
+Class Analytics
+Total students
+Active students
+New admissions
+Attendance percentage
+Monthly attendance summary
+Instructor Financial Dashboard
+
+Instructor should have access to financial data related only to their assigned classes.
+
+Show:
+Total Revenue Generated from assigned classes
+Total Revenue Received from assigned classes
+Total Pending Fees from assigned classes
+Students with pending fees
+Monthly collection summaries
+
+Example:
+
+My Classes Financial Summary
+
+Generated Revenue: Rs. 150,000
+Received Revenue: Rs. 120,000
+Pending Revenue: Rs. 30,000
+Pending Students: 8
+Instructor Earnings Section
+
+Add instructor earnings tracking.
+
+Show:
+Monthly Salary
+Total Earnings
+Salary Paid
+Pending Salary
+Salary Payment History
+
+Example:
+
+My Earnings
+
+Current Month Salary: Rs. 35,000
+Salary Paid: Rs. 25,000
+Pending Salary: Rs. 10,000
+Total Earnings: Rs. 210,000
+Instructor Cannot
+Add students
+Edit students
+Delete students
+Add classes
+Edit classes
+Delete classes
+Add instructors
+Edit instructors
+Delete instructors
+Access system settings
+Access admin reports
+View other instructors' classes or data
+2. Instructor-Class Assignment System
+
+When creating or editing an instructor:
+
+Requirements
+Support assigning multiple classes.
+Allow editing assignments later.
+Allow viewing assigned classes.
+Changes should automatically update instructor portal.
+
+Example:
+
+Instructor: Ahmed
+
+Assigned Classes:
+
+✓ Web Development
+
+✓ Graphic Design
+
+✓ AI Course
+
+✓ IELTS
+
+3. Attendance Module Improvements
+
+Current attendance structure is not ideal.
+
+Attendance should be organized by:
+
+Class → Students → Attendance Records
+
+Example
+
+Web Development
+
+Students:
+
+Ali
+
+Present
+Present
+Absent
+
+Sara
+
+Present
+Present
+Present
+
+Requirements:
+
+Instructor sees only assigned classes.
+Attendance records filtered by assigned classes.
+Class-wise attendance management.
+Student-wise attendance history.
+Monthly attendance summaries.
+4. Existing Student Migration & Historical Data Support
+
+The institute already has students whose batches started before system implementation.
+
+We must preserve historical records.
+
+Do not require re-creating existing students.
+
+Add Opening Balance / Migration Feature
+
+For every existing student store:
+
+Student Information
+Admission Date
+Batch Start Date
+Historical Attendance Summary
+Previous Present Days
+Previous Absent Days
+Historical Fee Summary
+Previously Paid Fees
+Previous Pending Fees
+
+Example:
+
+Student: Ali
+
+Admission Date:
+01-May-2026
+
+Batch Start Date:
+01-May-2026
+
+Opening Attendance:
+
+Present: 22
+Absent: 3
+
+Opening Fee Status:
+
+Paid: Rs. 5,000
+Pending: Rs. 0
+System Behavior
+
+After migration:
+
+Historical records remain preserved.
+New attendance starts from current date.
+New fee transactions continue normally.
+No need to manually enter old attendance day-by-day.
+Student profile should display both historical summary and current records.
+5. Student Record Management
+
+Requirements:
+
+Preserve all existing student records.
+Preserve attendance history.
+Preserve fee history.
+Support active and completed batches.
+Maintain full student lifecycle history.
+
+Student profile should display:
+
+Personal information
+Class information
+Attendance records
+Fee records
+Historical imported records
+Current records
+6. Dashboard Configuration
+Admin Dashboard
+
+Show:
+
+Total Students
+Total Classes
+Total Instructors
+Total Staff
+Total Revenue Generated
+Total Revenue Received
+Total Pending Revenue
+Attendance Statistics
+New Admissions
+Monthly Growth Analytics
+Staff Dashboard
+
+Show:
+
+Total Students
+Total Classes
+Total Instructors
+Attendance Summary
+New Admissions
+
+Hide:
+
+Revenue Generated
+Revenue Received
+Pending Revenue
+Financial Analytics
+Instructor Dashboard
+
+Show:
+
+Assigned Classes
+Total Students
+Attendance Summary
+Check-In
+Check-Out
+Class Statistics
+Revenue from Assigned Classes
+Pending Fees
+Collected Fees
+Earnings
+Salary Information
+7. Security & Permissions
+
+Apply authorization on both frontend and backend.
+
+Do not rely only on UI restrictions.
+
+Security Rules
+
+Admin:
+
+Full access
+
+Staff:
+
+Operational access only
+No delete permissions
+No financial reports
+
+Instructor:
+
+Access only assigned classes
+Access only assigned students
+Access only assigned attendance records
+Access only assigned financial data
+Access only personal earnings information
+
+All APIs, database queries, dashboards, menus, reports, and actions must strictly follow role permissions.
+
+Final Requirements
+Keep existing UI/design intact.
+Do not remove existing functionality unless it conflicts with the new requirements.
+Add proper database migrations where required.
+Preserve all current student, attendance, and fee data.
+Implement role-based dashboards.
+Implement role-based API security.
+Test all permissions thoroughly.
+Ensure Admin, Staff, and Instructor dashboards are completely different and show only the data relevant to their role.

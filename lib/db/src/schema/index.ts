@@ -8,5 +8,7 @@ export * from "./instructor_payments";
 export * from "./users";
 export * from "./classes";
 export * from "./instructor_attendance";
+export * from "./instructor_classes";
+export * from "./student_attendance";
 export * from "./certificates";
 export * from "./budget_entries";

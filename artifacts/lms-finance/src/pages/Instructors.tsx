@@ -8,7 +8,7 @@ import {
   useListCourses,
 } from "@workspace/api-client-react";
 import type { Instructor } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatCurrency } from "@/lib/utils";
-import { Plus, Search, Eye, Pencil, Trash2, AlertCircle, UserCheck, Phone } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, AlertCircle, UserCheck, Phone, School } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 
 type PaymentModel = "salary" | "per_lecture" | "commission";
+type ClassRecord = { id: number; className: string; courseName: string };
 
 const EMPTY_FORM = {
   name: "",
@@ -37,14 +40,7 @@ const EMPTY_FORM = {
   joinDate: new Date().toISOString().split("T")[0],
   status: "active" as "active" | "inactive",
 };
-
 type FormState = typeof EMPTY_FORM;
-
-const PAYMENT_MODEL_LABELS: Record<PaymentModel, string> = {
-  salary: "Monthly Salary",
-  per_lecture: "Per Lecture",
-  commission: "Commission (%)",
-};
 
 export default function Instructors() {
   const [search, setSearch] = useState("");
@@ -54,10 +50,13 @@ export default function Instructors() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Instructor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Instructor | null>(null);
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
+  const [classTarget, setClassTarget] = useState<Instructor | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canAdd, canEdit, canDelete } = useAuth();
 
   const params = {
     ...(filterCourse !== "all" ? { courseId: Number(filterCourse) } : {}),
@@ -67,6 +66,10 @@ export default function Instructors() {
 
   const { data: instructors, isLoading, error } = useListInstructors(params);
   const { data: courses } = useListCourses();
+  const { data: classes = [] } = useQuery<ClassRecord[]>({
+    queryKey: ["classes"],
+    queryFn: () => apiFetch("/classes"),
+  });
   const createMutation = useCreateInstructor();
   const updateMutation = useUpdateInstructor();
   const deleteMutation = useDeleteInstructor();
@@ -112,19 +115,6 @@ export default function Instructors() {
       toast({ title: "Validation Error", description: "Name and join date are required.", variant: "destructive" });
       return;
     }
-    if (form.paymentModel === "salary" && !form.monthlySalary) {
-      toast({ title: "Validation Error", description: "Monthly salary is required.", variant: "destructive" });
-      return;
-    }
-    if (form.paymentModel === "per_lecture" && !form.lectureRate) {
-      toast({ title: "Validation Error", description: "Lecture rate is required.", variant: "destructive" });
-      return;
-    }
-    if (form.paymentModel === "commission" && !form.commissionPercent) {
-      toast({ title: "Validation Error", description: "Commission % is required.", variant: "destructive" });
-      return;
-    }
-
     const payload: Record<string, any> = {
       name: form.name.trim(),
       fatherName: form.fatherName || undefined,
@@ -148,6 +138,7 @@ export default function Instructors() {
         toast({ title: "Instructor added" });
       }
       qc.invalidateQueries({ queryKey: ["listInstructors"] });
+      qc.invalidateQueries({ queryKey: ["instructors"] });
       setDialogOpen(false);
     } catch {
       toast({ title: "Error", description: "Failed to save instructor.", variant: "destructive" });
@@ -170,15 +161,11 @@ export default function Instructors() {
 
   function renderModelBadge(model: string) {
     const colors: Record<string, string> = {
-      salary: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800",
-      per_lecture: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800",
-      commission: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+      salary: "bg-blue-50 text-blue-700 border-blue-200",
+      per_lecture: "bg-purple-50 text-purple-700 border-purple-200",
+      commission: "bg-amber-50 text-amber-700 border-amber-200",
     };
-    const labels: Record<string, string> = {
-      salary: "Salary",
-      per_lecture: "Per Lecture",
-      commission: "Commission",
-    };
+    const labels: Record<string, string> = { salary: "Salary", per_lecture: "Per Lecture", commission: "Commission" };
     return (
       <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border", colors[model] ?? colors.salary)}>
         {labels[model] ?? model}
@@ -199,40 +186,34 @@ export default function Instructors() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Instructors</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage teaching staff — salary, per-lecture, or commission models.</p>
+          <p className="text-sm text-muted-foreground mt-1">Manage teaching staff — assign classes and payment models.</p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" /> Add Instructor
-        </Button>
+        {canAdd && (
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Add Instructor
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-5">
-            <div className="text-2xl font-bold">{filtered?.length ?? "—"}</div>
-            <div className="text-sm text-muted-foreground mt-1">Total Instructors</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="text-2xl font-bold text-green-600">{filtered?.filter((i) => i.status === "active").length ?? "—"}</div>
-            <div className="text-sm text-muted-foreground mt-1">Active</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="text-2xl font-bold text-purple-600">
-              {filtered?.filter((i) => (i as any).paymentModel === "per_lecture").length ?? 0}
-            </div>
-            <div className="text-sm text-muted-foreground mt-1">Per-Lecture</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="text-2xl font-bold">{formatCurrency(totalSalaryPayroll)}</div>
-            <div className="text-sm text-muted-foreground mt-1">Fixed Payroll</div>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-5">
+          <div className="text-2xl font-bold">{filtered?.length ?? "—"}</div>
+          <div className="text-sm text-muted-foreground mt-1">Total Instructors</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5">
+          <div className="text-2xl font-bold text-green-600">{filtered?.filter((i) => i.status === "active").length ?? "—"}</div>
+          <div className="text-sm text-muted-foreground mt-1">Active</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5">
+          <div className="text-2xl font-bold text-purple-600">
+            {filtered?.filter((i) => (i as any).paymentModel === "per_lecture").length ?? 0}
+          </div>
+          <div className="text-sm text-muted-foreground mt-1">Per-Lecture</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5">
+          <div className="text-2xl font-bold">{formatCurrency(totalSalaryPayroll)}</div>
+          <div className="text-sm text-muted-foreground mt-1">Fixed Payroll</div>
+        </CardContent></Card>
       </div>
 
       <Card>
@@ -285,7 +266,7 @@ export default function Instructors() {
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <UserCheck className="w-10 h-10 text-muted-foreground/40" />
                 <p className="text-muted-foreground text-sm">No instructors found.</p>
-                <Button variant="outline" onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" /> Add First Instructor</Button>
+                {canAdd && <Button variant="outline" onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" /> Add First Instructor</Button>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -295,44 +276,73 @@ export default function Instructors() {
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Code</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Specialization</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Course</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Model</th>
                       <th className="text-right px-4 py-3 font-medium text-muted-foreground">Rate</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Join Date</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Classes</th>
                       <th className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
                       <th className="text-center px-4 py-3 font-medium text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered!.map((i) => (
-                      <tr key={i.id} className="border-b border-border hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-primary font-semibold">{i.instructorCode}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{i.name}</div>
-                          {i.phone && <div className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{i.phone}</div>}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{i.specialization ?? "—"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{i.courseName ?? "—"}</td>
-                        <td className="px-4 py-3">{renderModelBadge((i as any).paymentModel ?? "salary")}</td>
-                        <td className="px-4 py-3 text-right font-mono font-semibold">{renderRateInfo(i)}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{new Date(i.joinDate).toLocaleDateString("en-PK")}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border",
-                            i.status === "active" ? "text-green-700 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800" : "text-slate-500 bg-slate-50 border-slate-200 dark:bg-slate-900/40 dark:border-slate-700")}>
-                            {i.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-1">
-                            <Link href={`/instructors/${i.id}`}>
-                              <Button variant="ghost" size="icon" className="w-8 h-8"><Eye className="w-4 h-4" /></Button>
-                            </Link>
-                            <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEdit(i)}><Pencil className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" className="w-8 h-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(i)}><Trash2 className="w-4 h-4" /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {filtered!.map((i) => {
+                      const assignedClasses: any[] = (i as any).assignedClasses ?? [];
+                      return (
+                        <tr key={i.id} className="border-b border-border hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-mono text-primary font-semibold">{i.instructorCode}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium">{i.name}</div>
+                            {i.phone && <div className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{i.phone}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{i.specialization ?? "—"}</td>
+                          <td className="px-4 py-3">{renderModelBadge((i as any).paymentModel ?? "salary")}</td>
+                          <td className="px-4 py-3 text-right font-mono font-semibold">{renderRateInfo(i)}</td>
+                          <td className="px-4 py-3">
+                            {assignedClasses.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {assignedClasses.slice(0, 2).map((c: any) => (
+                                  <span key={c.classId} className="inline-flex px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs">
+                                    {c.className}
+                                  </span>
+                                ))}
+                                {assignedClasses.length > 2 && (
+                                  <span className="text-xs text-muted-foreground">+{assignedClasses.length - 2} more</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">None</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border",
+                              i.status === "active" ? "text-green-700 bg-green-50 border-green-200" : "text-slate-500 bg-slate-50 border-slate-200")}>
+                              {i.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <Link href={`/instructors/${i.id}`}>
+                                <Button variant="ghost" size="icon" className="w-8 h-8"><Eye className="w-4 h-4" /></Button>
+                              </Link>
+                              {canEdit && (
+                                <>
+                                  <Button variant="ghost" size="icon" className="w-8 h-8" title="Assign Classes" onClick={() => { setClassTarget(i); setClassDialogOpen(true); }}>
+                                    <School className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEdit(i)}>
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {canDelete && (
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(i)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -341,6 +351,7 @@ export default function Instructors() {
         </Card>
       )}
 
+      {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
@@ -400,14 +411,12 @@ export default function Instructors() {
               <div className="col-span-2 space-y-1">
                 <Label>Rate per Lecture (PKR) <span className="text-destructive">*</span></Label>
                 <Input type="number" min="0" step="0.01" value={form.lectureRate} onChange={(e) => setField("lectureRate", e.target.value)} placeholder="e.g. 500" />
-                <p className="text-xs text-muted-foreground">Earnings = rate × total lectures delivered (tracked via attendance log)</p>
               </div>
             )}
             {form.paymentModel === "commission" && (
               <div className="col-span-2 space-y-1">
                 <Label>Commission % <span className="text-destructive">*</span></Label>
                 <Input type="number" min="0" max="100" step="0.1" value={form.commissionPercent} onChange={(e) => setField("commissionPercent", e.target.value)} placeholder="e.g. 10" />
-                <p className="text-xs text-muted-foreground">Earnings = % of total fees collected from students of the assigned course</p>
               </div>
             )}
 
@@ -433,6 +442,21 @@ export default function Instructors() {
         </DialogContent>
       </Dialog>
 
+      {/* Class Assignment Dialog */}
+      {classTarget && (
+        <ClassAssignDialog
+          open={classDialogOpen}
+          onClose={() => setClassDialogOpen(false)}
+          instructor={classTarget}
+          allClasses={classes}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["listInstructors"] });
+            qc.invalidateQueries({ queryKey: ["instructors"] });
+            setClassDialogOpen(false);
+          }}
+        />
+      )}
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -443,12 +467,84 @@ export default function Instructors() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function ClassAssignDialog({
+  open, onClose, instructor, allClasses, onSuccess,
+}: {
+  open: boolean;
+  onClose: () => void;
+  instructor: Instructor;
+  allClasses: ClassRecord[];
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const existingClassIds: number[] = ((instructor as any).assignedClasses ?? []).map((c: any) => c.classId);
+  const [selected, setSelected] = useState<Set<number>>(new Set(existingClassIds));
+
+  const assignMutation = useMutation({
+    mutationFn: (classIds: number[]) =>
+      apiFetch(`/instructors/${instructor.id}/classes`, {
+        method: "POST",
+        body: JSON.stringify({ classIds }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Classes updated", description: `Assigned ${selected.size} class(es) to ${instructor.name}` });
+      onSuccess();
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update classes", variant: "destructive" }),
+  });
+
+  function toggle(classId: number) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(classId)) next.delete(classId);
+      else next.add(classId);
+      return next;
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Assign Classes — {instructor.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 max-h-80 overflow-y-auto py-2">
+          {allClasses.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-8">No classes found. Create classes first.</p>
+          )}
+          {allClasses.map(cls => (
+            <label key={cls.id} className={cn(
+              "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+              selected.has(cls.id) ? "bg-primary/10 border-primary/30" : "hover:bg-muted/40 border-border"
+            )}>
+              <input
+                type="checkbox"
+                checked={selected.has(cls.id)}
+                onChange={() => toggle(cls.id)}
+                className="w-4 h-4 accent-primary"
+              />
+              <div className="min-w-0">
+                <div className="font-medium text-sm">{cls.className}</div>
+                <div className="text-xs text-muted-foreground">{cls.courseName}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => assignMutation.mutate(Array.from(selected))} disabled={assignMutation.isPending}>
+            {assignMutation.isPending ? "Saving…" : `Assign ${selected.size} Class(es)`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

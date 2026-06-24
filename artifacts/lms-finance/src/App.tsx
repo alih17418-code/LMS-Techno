@@ -21,11 +21,12 @@ import Budget from "@/pages/Budget";
 import Certificates from "@/pages/Certificates";
 import Classes from "@/pages/Classes";
 import Attendance from "@/pages/Attendance";
+import StudentAttendance from "@/pages/StudentAttendance";
 import StudentPortal from "@/pages/StudentPortal";
 import Login from "@/pages/Login";
 import Roles from "@/pages/Roles";
 
-type AuthUser = { id: number; username: string; role: string; displayName: string };
+type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number };
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,6 +92,7 @@ function Router() {
               <Route path="/certificates" component={Certificates} />
               <Route path="/classes" component={Classes} />
               <Route path="/attendance" component={Attendance} />
+              <Route path="/student-attendance" component={StudentAttendance} />
               <Route path="/roles" component={Roles} />
               <Route component={NotFound} />
             </Switch>

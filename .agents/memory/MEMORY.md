@@ -1,0 +1,1 @@
+- [TIPS Finance RBAC Architecture](tips-rbac.md) — Admin/Staff/Instructor roles with junction tables for multi-class assignment and student attendance.

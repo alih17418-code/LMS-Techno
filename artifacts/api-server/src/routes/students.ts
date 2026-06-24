@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, ilike, and, or, type SQL } from "drizzle-orm";
-import { db, studentsTable, coursesTable, vouchersTable } from "@workspace/db";
+import { db, studentsTable, coursesTable, vouchersTable, classesTable, instructorClassesTable } from "@workspace/db";
+import { requireAuth, requireAdminOrStaff, requireAdmin, getSessionUser } from "../middlewares/auth";
 
 const router = Router();
 
@@ -9,13 +10,11 @@ const MONTH_NAMES = [
   "July","August","September","October","November","December",
 ];
 
-// Auto-generate next student code (100001, 100002, ...)
 async function generateStudentCode(): Promise<string> {
   const count = await db.$count(studentsTable);
   return String(100001 + count);
 }
 
-// Calculate end date from enrollment date + durationMonths
 function calcEndDate(enrollmentDate: string, durationMonths: number): string {
   const d = new Date(enrollmentDate);
   d.setMonth(d.getMonth() + durationMonths);
@@ -23,13 +22,15 @@ function calcEndDate(enrollmentDate: string, durationMonths: number): string {
 }
 
 // GET /students
-router.get("/students", async (req, res) => {
-  const { courseId, course, status, search } = req.query as Record<string, string>;
+router.get("/students", requireAuth, async (req, res) => {
+  const session = getSessionUser(req);
+  const { courseId, course, status, search, classId } = req.query as Record<string, string>;
 
   const conditions: SQL[] = [];
   if (courseId) conditions.push(eq(studentsTable.courseId, Number(courseId)));
   if (course) conditions.push(eq(studentsTable.course, course));
   if (status) conditions.push(eq(studentsTable.status, status));
+  if (classId) conditions.push(eq(studentsTable.classId, Number(classId)));
   if (search) {
     conditions.push(
       or(
@@ -38,6 +39,29 @@ router.get("/students", async (req, res) => {
         ilike(studentsTable.phone as any, `%${search}%`)
       ) as SQL
     );
+  }
+
+  // Instructors only see students in their assigned classes
+  if (session.role === "instructor" && session.instructorId) {
+    const assignedClasses = await db
+      .select({ classId: instructorClassesTable.classId })
+      .from(instructorClassesTable)
+      .where(eq(instructorClassesTable.instructorId, session.instructorId));
+    const classIds = assignedClasses.map(c => c.classId);
+
+    if (classIds.length === 0) return res.json([]);
+
+    // Filter students to those in assigned classes
+    const rows = await db
+      .select({ student: studentsTable, course: coursesTable })
+      .from(studentsTable)
+      .leftJoin(coursesTable, eq(studentsTable.courseId, coursesTable.id))
+      .where(and(
+        ...conditions,
+        or(...classIds.map(id => eq(studentsTable.classId, id))) as SQL
+      ))
+      .orderBy(studentsTable.name);
+    return res.json(rows.map(({ student, course }) => toStudentResponse(student, course)));
   }
 
   const rows = await db
@@ -50,18 +74,27 @@ router.get("/students", async (req, res) => {
   return res.json(rows.map(({ student, course }) => toStudentResponse(student, course)));
 });
 
-// POST /students
-router.post("/students", async (req, res) => {
-  const { name, courseId, fatherName, phone, address, status, enrollmentDate, discountAmount } = req.body;
+// POST /students — admin or staff only
+router.post("/students", requireAdminOrStaff, async (req, res) => {
+  const {
+    name, courseId, classId, fatherName, phone, address, status,
+    enrollmentDate, batchStartDate, discountAmount,
+    openingPaidAmount, openingPendingAmount, openingPresentDays, openingAbsentDays,
+  } = req.body;
 
   if (!name || !courseId || !enrollmentDate) {
     return res.status(400).json({ error: "validation_error", message: "name, courseId, and enrollmentDate are required" });
   }
 
-  // Fetch course
   const [courseRow] = await db.select().from(coursesTable).where(eq(coursesTable.id, Number(courseId)));
   if (!courseRow) {
     return res.status(400).json({ error: "not_found", message: "Course not found" });
+  }
+
+  let className: string | null = null;
+  if (classId) {
+    const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, Number(classId)));
+    className = cls?.className ?? null;
   }
 
   const studentCode = await generateStudentCode();
@@ -74,13 +107,20 @@ router.post("/students", async (req, res) => {
       name: String(name).trim(),
       courseId: Number(courseId),
       course: courseRow.name,
+      classId: classId ? Number(classId) : null,
+      className,
       fatherName: fatherName ?? null,
       phone: phone ?? null,
       address: address ?? null,
       status: status ?? "active",
       enrollmentDate,
+      batchStartDate: batchStartDate ?? null,
       endDate,
       discountAmount: String(discountAmount ?? "0"),
+      openingPaidAmount: String(openingPaidAmount ?? "0"),
+      openingPendingAmount: String(openingPendingAmount ?? "0"),
+      openingPresentDays: Number(openingPresentDays ?? 0),
+      openingAbsentDays: Number(openingAbsentDays ?? 0),
     })
     .returning();
 
@@ -88,8 +128,10 @@ router.post("/students", async (req, res) => {
 });
 
 // GET /students/:id
-router.get("/students/:id", async (req, res) => {
+router.get("/students/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
+  const session = getSessionUser(req);
+
   const [row] = await db
     .select({ student: studentsTable, course: coursesTable })
     .from(studentsTable)
@@ -97,11 +139,27 @@ router.get("/students/:id", async (req, res) => {
     .where(eq(studentsTable.id, id));
 
   if (!row) return res.status(404).json({ error: "not_found", message: "Student not found" });
+
+  // Instructors can only view students in their assigned classes
+  if (session.role === "instructor" && session.instructorId) {
+    if (!row.student.classId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const [assigned] = await db
+      .select()
+      .from(instructorClassesTable)
+      .where(and(
+        eq(instructorClassesTable.instructorId, session.instructorId),
+        eq(instructorClassesTable.classId, row.student.classId)
+      ));
+    if (!assigned) return res.status(403).json({ error: "Access denied" });
+  }
+
   return res.json(toStudentResponse(row.student, row.course));
 });
 
-// PUT /students/:id
-router.put("/students/:id", async (req, res) => {
+// PUT /students/:id — admin or staff only
+router.put("/students/:id", requireAdminOrStaff, async (req, res) => {
   const id = Number(req.params.id);
 
   const [existing] = await db
@@ -119,8 +177,24 @@ router.put("/students/:id", async (req, res) => {
   if (body.phone !== undefined) updateData.phone = body.phone;
   if (body.address !== undefined) updateData.address = body.address;
   if (body.discountAmount !== undefined) updateData.discountAmount = String(body.discountAmount);
+  if (body.batchStartDate !== undefined) updateData.batchStartDate = body.batchStartDate ?? null;
+  if (body.openingPaidAmount !== undefined) updateData.openingPaidAmount = String(body.openingPaidAmount);
+  if (body.openingPendingAmount !== undefined) updateData.openingPendingAmount = String(body.openingPendingAmount);
+  if (body.openingPresentDays !== undefined) updateData.openingPresentDays = Number(body.openingPresentDays);
+  if (body.openingAbsentDays !== undefined) updateData.openingAbsentDays = Number(body.openingAbsentDays);
 
-  // If courseId or enrollmentDate changed, recalculate endDate
+  // Class assignment
+  if (body.classId !== undefined) {
+    if (body.classId === null || body.classId === "") {
+      updateData.classId = null;
+      updateData.className = null;
+    } else {
+      const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, Number(body.classId)));
+      updateData.classId = Number(body.classId);
+      updateData.className = cls?.className ?? null;
+    }
+  }
+
   let courseRow: typeof coursesTable.$inferSelect | undefined;
   if (body.courseId !== undefined) {
     const [c] = await db.select().from(coursesTable).where(eq(coursesTable.id, Number(body.courseId)));
@@ -153,8 +227,8 @@ router.put("/students/:id", async (req, res) => {
   return res.json(toStudentResponse(updated, updatedCourse));
 });
 
-// DELETE /students/:id
-router.delete("/students/:id", async (req, res) => {
+// DELETE /students/:id — admin only
+router.delete("/students/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, id));
   if (!existing) return res.status(404).json({ error: "not_found", message: "Student not found" });
@@ -173,7 +247,7 @@ router.delete("/students/:id", async (req, res) => {
 });
 
 // GET /students/:id/ledger
-router.get("/students/:id/ledger", async (req, res) => {
+router.get("/students/:id/ledger", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
 
   const [row] = await db
@@ -200,12 +274,18 @@ router.get("/students/:id/ledger", async (req, res) => {
     status: v.status,
   }));
 
+  const student = toStudentResponse(row.student, row.course);
+  const openingPaid = parseFloat(row.student.openingPaidAmount as string ?? "0");
+  const openingPending = parseFloat(row.student.openingPendingAmount as string ?? "0");
+
   return res.json({
-    student: toStudentResponse(row.student, row.course),
+    student,
     entries,
+    openingPaid,
+    openingPending,
     totalFee: entries.reduce((s, e) => s + e.fee, 0),
-    totalReceived: entries.reduce((s, e) => s + e.received, 0),
-    totalPending: entries.reduce((s, e) => s + e.pending, 0),
+    totalReceived: entries.reduce((s, e) => s + e.received, 0) + openingPaid,
+    totalPending: entries.reduce((s, e) => s + e.pending, 0) + openingPending,
   });
 });
 
@@ -216,7 +296,6 @@ export function toStudentResponse(
   const discount = parseFloat(s.discountAmount as string ?? "0");
   const monthlyFee = c ? parseFloat(c.monthlyFee as string) : 0;
   const durationMonths = c ? c.durationMonths : 1;
-  // discountAmount is a TOTAL discount on the whole course, spread evenly per month
   const effectiveFee = Math.max(0, (monthlyFee * durationMonths - discount) / durationMonths);
   return {
     id: s.id,
@@ -224,14 +303,21 @@ export function toStudentResponse(
     name: s.name,
     course: s.course,
     courseId: s.courseId ?? undefined,
+    classId: s.classId ?? undefined,
+    className: s.className ?? undefined,
     fatherName: s.fatherName ?? undefined,
     phone: s.phone ?? undefined,
     address: s.address ?? undefined,
     status: s.status,
     enrollmentDate: s.enrollmentDate,
+    batchStartDate: s.batchStartDate ?? undefined,
     endDate: s.endDate ?? undefined,
     discountAmount: discount,
     effectiveFee,
+    openingPaidAmount: parseFloat(s.openingPaidAmount as string ?? "0"),
+    openingPendingAmount: parseFloat(s.openingPendingAmount as string ?? "0"),
+    openingPresentDays: s.openingPresentDays ?? 0,
+    openingAbsentDays: s.openingAbsentDays ?? 0,
     createdAt: s.createdAt.toISOString(),
   };
 }

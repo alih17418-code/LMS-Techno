@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, BookOpen, Receipt, FileText, CreditCard,
   GraduationCap, UserCheck, Wallet, Award, School, ClipboardCheck,
-  ShieldCheck, Globe, LogOut, LogIn,
+  ShieldCheck, Globe, LogOut, LogIn, BookCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,20 +13,28 @@ import { useToast } from "@/hooks/use-toast";
 type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number };
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
-type NavSection = { label: string; items: NavItem[]; adminOnly?: boolean; hideFromInstructor?: boolean };
+type NavSection = {
+  label: string;
+  items: NavItem[];
+  adminOnly?: boolean;
+  staffVisible?: boolean; // visible to admin + staff
+  instructorOnly?: boolean;
+};
 
-const NAV_SECTIONS: NavSection[] = [
+const ADMIN_STAFF_SECTIONS: NavSection[] = [
   {
     label: "Main",
+    staffVisible: true,
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/students", label: "Students", icon: Users },
       { href: "/courses", label: "Courses", icon: GraduationCap },
+      { href: "/classes", label: "Classes", icon: School },
     ],
   },
   {
     label: "Finance",
-    hideFromInstructor: true,
+    adminOnly: true,
     items: [
       { href: "/vouchers", label: "Vouchers", icon: FileText },
       { href: "/receipts", label: "Receipts", icon: Receipt },
@@ -35,16 +43,26 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: "Instructors",
+    label: "Staff — Fees",
+    staffVisible: true,
     items: [
-      { href: "/instructors", label: "Instructors", icon: UserCheck },
-      { href: "/classes", label: "Classes", icon: School },
-      { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
+      { href: "/vouchers", label: "Vouchers", icon: FileText },
+      { href: "/receipts", label: "Receipts", icon: Receipt },
     ],
   },
   {
-    label: "Academic",
+    label: "Instructors",
+    staffVisible: true,
     items: [
+      { href: "/instructors", label: "Instructors", icon: UserCheck },
+      { href: "/attendance", label: "Instructor Attendance", icon: ClipboardCheck },
+    ],
+  },
+  {
+    label: "Students",
+    staffVisible: true,
+    items: [
+      { href: "/student-attendance", label: "Student Attendance", icon: BookCheck },
       { href: "/certificates", label: "Certificates", icon: Award },
       { href: "/portal", label: "Student Portal", icon: Globe },
     ],
@@ -58,16 +76,46 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+const INSTRUCTOR_SECTIONS: NavSection[] = [
+  {
+    label: "My Portal",
+    instructorOnly: true,
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/attendance", label: "My Check-in", icon: ClipboardCheck },
+      { href: "/student-attendance", label: "Student Attendance", icon: BookCheck },
+    ],
+  },
+  {
+    label: "My Classes",
+    instructorOnly: true,
+    items: [
+      { href: "/students", label: "My Students", icon: Users },
+      { href: "/classes", label: "My Classes", icon: School },
+    ],
+  },
+];
+
 export function Sidebar({ role }: { role?: string }) {
   const [location] = useLocation();
   const isAdmin = role === "admin";
+  const isStaff = role === "staff";
   const isInstructor = role === "instructor";
 
-  const visibleSections = NAV_SECTIONS.filter(section => {
-    if (section.adminOnly && !isAdmin) return false;
-    if (section.hideFromInstructor && isInstructor) return false;
-    return true;
-  });
+  let sections: NavSection[];
+
+  if (isInstructor) {
+    sections = INSTRUCTOR_SECTIONS;
+  } else {
+    sections = ADMIN_STAFF_SECTIONS.filter(section => {
+      if (section.instructorOnly) return false;
+      if (section.adminOnly && !isAdmin) return false;
+      // "Staff — Fees" section: show only to staff, hide from admin (admin sees full Finance)
+      if (section.label === "Staff — Fees") return isStaff;
+      if (section.staffVisible) return isAdmin || isStaff;
+      return true;
+    });
+  }
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border min-h-[100dvh] flex flex-col hidden md:flex shrink-0">
@@ -76,7 +124,7 @@ export function Sidebar({ role }: { role?: string }) {
         <p className="text-[10px] text-slate-500 font-mono tracking-widest">FINANCE SYSTEM</p>
       </div>
       <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
-        {visibleSections.map((section) => (
+        {sections.map((section) => (
           <div key={section.label}>
             <p className="text-[10px] uppercase tracking-widest font-semibold text-sidebar-foreground/40 px-2 mb-1">{section.label}</p>
             <div className="space-y-0.5">
@@ -84,7 +132,7 @@ export function Sidebar({ role }: { role?: string }) {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href + section.label} href={item.href}>
                     <div
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
@@ -104,7 +152,7 @@ export function Sidebar({ role }: { role?: string }) {
         ))}
       </nav>
       <div className="p-4 border-t border-sidebar-border text-xs text-sidebar-foreground/40 font-mono text-center">
-        v2.1.0
+        v3.0.0
       </div>
     </aside>
   );

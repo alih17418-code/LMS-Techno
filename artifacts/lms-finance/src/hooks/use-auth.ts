@@ -32,9 +32,21 @@ export function useAuth() {
     isStaff,
     isInstructor,
     isLoading,
+    // Delete: admin only
     canDelete: isAdmin,
+    // Edit: admin and staff
     canEdit: isAdmin || isStaff,
+    // Add: admin and staff
     canAdd: isAdmin || isStaff,
+    // Financial data visibility: admin only
     showFinancials: isAdmin,
+    // Staff can see operational data but not financial reports
+    showReports: isAdmin,
+    // Instructor can see their own class-based financial data
+    showInstructorFinancials: isInstructor,
+    // Can manage users
+    canManageUsers: isAdmin,
+    // Can manage fee/voucher/receipts (not instructor)
+    canManageFees: isAdmin || isStaff,
   };
 }

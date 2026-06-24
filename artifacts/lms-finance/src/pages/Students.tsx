@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useListStudents, getListStudentsQueryKey,
   useCreateStudent, useUpdateStudent, useDeleteStudent,
@@ -17,9 +17,14 @@ import { cn, formatCurrency, getStatusColor } from "@/lib/utils";
 import { Plus, Search, Pencil, Trash2, BookOpen, AlertCircle, Eye, Tag, CreditCard } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { Link } from "wouter";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+
+type ClassRecord = { id: number; className: string; courseName: string };
 
 export default function Students() {
   const qc = useQueryClient();
+  const { canAdd, canEdit, canDelete } = useAuth();
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -28,6 +33,10 @@ export default function Students() {
   const [deleteConfirm, setDeleteConfirm] = useState<Student | null>(null);
 
   const { data: courses } = useListCourses({ query: { queryKey: getListCoursesQueryKey() } });
+  const { data: classes = [] } = useQuery<ClassRecord[]>({
+    queryKey: ["classes"],
+    queryFn: () => apiFetch("/classes"),
+  });
 
   const params: Record<string, any> = {};
   if (courseFilter !== "all") params.courseId = Number(courseFilter);
@@ -59,9 +68,11 @@ export default function Students() {
           <h1 className="text-2xl font-bold tracking-tight">Students</h1>
           <p className="text-sm text-muted-foreground mt-1">Student codes auto-generated. Search by name, code, or phone.</p>
         </div>
-        <Button onClick={() => { setEditStudent(null); setShowDialog(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Enroll Student
-        </Button>
+        {canAdd && (
+          <Button onClick={() => { setEditStudent(null); setShowDialog(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Enroll Student
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -77,22 +88,19 @@ export default function Students() {
               />
             </div>
             <Select value={courseFilter} onValueChange={setCourseFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Courses" />
-              </SelectTrigger>
+              <SelectTrigger className="w-44"><SelectValue placeholder="All Courses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Courses</SelectItem>
                 {courses?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
+              <SelectTrigger className="w-36"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -114,18 +122,17 @@ export default function Students() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Code</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Course</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Course / Class</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Father Name</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Phone</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Effective Fee</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">End Date</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Fee/Mo</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {students?.length === 0 && (
-                    <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">
                       <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-40" />
                       No students found.
                     </td></tr>
@@ -135,9 +142,14 @@ export default function Students() {
                       <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{s.studentCode}</td>
                       <td className="px-4 py-3 font-medium">{s.name}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                          {s.course}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20 w-fit">
+                            {s.course}
+                          </span>
+                          {(s as any).className && (
+                            <span className="text-xs text-muted-foreground">{(s as any).className}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{s.fatherName ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{s.phone ?? "—"}</td>
@@ -149,7 +161,6 @@ export default function Students() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{s.endDate ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border", getStatusColor(s.status))}>
                           {s.status}
@@ -167,12 +178,16 @@ export default function Students() {
                               <CreditCard className="w-3.5 h-3.5" />
                             </Button>
                           </Link>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditStudent(s); setShowDialog(true); }}>
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(s)}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditStudent(s); setShowDialog(true); }}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(s)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -184,18 +199,21 @@ export default function Students() {
         </CardContent>
       </Card>
 
-      <StudentFormDialog
-        open={showDialog}
-        onClose={() => setShowDialog(false)}
-        student={editStudent}
-        courses={courses ?? []}
-        onSuccess={() => {
-          qc.invalidateQueries({ queryKey: getListStudentsQueryKey() });
-          setShowDialog(false);
-        }}
-        createMutation={createMutation}
-        updateMutation={updateMutation}
-      />
+      {(canAdd || canEdit) && (
+        <StudentFormDialog
+          open={showDialog}
+          onClose={() => setShowDialog(false)}
+          student={editStudent}
+          courses={courses ?? []}
+          classes={classes}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+            setShowDialog(false);
+          }}
+          createMutation={createMutation}
+          updateMutation={updateMutation}
+        />
+      )}
 
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent>
@@ -215,28 +233,85 @@ export default function Students() {
   );
 }
 
+type FormData = CreateStudentInput & {
+  courseId: number;
+  classId?: number | null;
+  batchStartDate?: string;
+  openingPaidAmount?: number;
+  openingPendingAmount?: number;
+  openingPresentDays?: number;
+  openingAbsentDays?: number;
+};
+
 function StudentFormDialog({
-  open, onClose, student, courses, onSuccess, createMutation, updateMutation,
+  open, onClose, student, courses, classes, onSuccess, createMutation, updateMutation,
 }: {
   open: boolean;
   onClose: () => void;
   student: Student | null;
   courses: Course[];
+  classes: ClassRecord[];
   onSuccess: () => void;
   createMutation: ReturnType<typeof useCreateStudent>;
   updateMutation: ReturnType<typeof useUpdateStudent>;
 }) {
-  const { register, handleSubmit, control, watch, setValue, formState: { errors }, reset } = useForm<CreateStudentInput & { courseId: number }>({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors }, reset } = useForm<FormData>({
     defaultValues: student
-      ? { name: student.name, courseId: student.courseId, fatherName: student.fatherName ?? "", phone: student.phone ?? "", address: student.address ?? "", status: student.status as any, enrollmentDate: student.enrollmentDate, discountAmount: student.discountAmount ?? 0 }
-      : { status: "active", enrollmentDate: new Date().toISOString().slice(0, 10), discountAmount: 0 },
+      ? {
+          name: student.name,
+          courseId: student.courseId,
+          classId: (student as any).classId ?? null,
+          fatherName: student.fatherName ?? "",
+          phone: student.phone ?? "",
+          address: student.address ?? "",
+          status: student.status as any,
+          enrollmentDate: student.enrollmentDate,
+          batchStartDate: (student as any).batchStartDate ?? "",
+          discountAmount: student.discountAmount ?? 0,
+          openingPaidAmount: (student as any).openingPaidAmount ?? 0,
+          openingPendingAmount: (student as any).openingPendingAmount ?? 0,
+          openingPresentDays: (student as any).openingPresentDays ?? 0,
+          openingAbsentDays: (student as any).openingAbsentDays ?? 0,
+        }
+      : {
+          status: "active",
+          enrollmentDate: new Date().toISOString().slice(0, 10),
+          discountAmount: 0,
+          openingPaidAmount: 0,
+          openingPendingAmount: 0,
+          openingPresentDays: 0,
+          openingAbsentDays: 0,
+        },
   });
 
   useEffect(() => {
     if (open) {
       reset(student
-        ? { name: student.name, courseId: student.courseId, fatherName: student.fatherName ?? "", phone: student.phone ?? "", address: student.address ?? "", status: student.status as any, enrollmentDate: student.enrollmentDate, discountAmount: student.discountAmount ?? 0 }
-        : { status: "active", enrollmentDate: new Date().toISOString().slice(0, 10), discountAmount: 0 }
+        ? {
+            name: student.name,
+            courseId: student.courseId,
+            classId: (student as any).classId ?? null,
+            fatherName: student.fatherName ?? "",
+            phone: student.phone ?? "",
+            address: student.address ?? "",
+            status: student.status as any,
+            enrollmentDate: student.enrollmentDate,
+            batchStartDate: (student as any).batchStartDate ?? "",
+            discountAmount: student.discountAmount ?? 0,
+            openingPaidAmount: (student as any).openingPaidAmount ?? 0,
+            openingPendingAmount: (student as any).openingPendingAmount ?? 0,
+            openingPresentDays: (student as any).openingPresentDays ?? 0,
+            openingAbsentDays: (student as any).openingAbsentDays ?? 0,
+          }
+        : {
+            status: "active",
+            enrollmentDate: new Date().toISOString().slice(0, 10),
+            discountAmount: 0,
+            openingPaidAmount: 0,
+            openingPendingAmount: 0,
+            openingPresentDays: 0,
+            openingAbsentDays: 0,
+          }
       );
     }
   }, [open, student]);
@@ -259,16 +334,27 @@ function StudentFormDialog({
     ? Math.max(0, (totalCourseFee - Number(discountAmount || 0)) / selectedCourse.durationMonths)
     : 0;
 
-  function onSubmit(data: CreateStudentInput & { courseId: number }) {
-    const payload = {
+  // Filter classes by selected course
+  const filteredClasses = selectedCourseId
+    ? classes.filter(c => (c as any).courseId === Number(selectedCourseId))
+    : classes;
+
+  function onSubmit(data: FormData) {
+    const payload: Record<string, any> = {
       name: data.name,
       courseId: Number(data.courseId),
+      classId: data.classId ? Number(data.classId) : null,
       fatherName: data.fatherName || undefined,
       phone: data.phone || undefined,
       address: data.address || undefined,
       status: data.status ?? "active",
       enrollmentDate: data.enrollmentDate,
+      batchStartDate: data.batchStartDate || undefined,
       discountAmount: Number(data.discountAmount ?? 0),
+      openingPaidAmount: Number(data.openingPaidAmount ?? 0),
+      openingPendingAmount: Number(data.openingPendingAmount ?? 0),
+      openingPresentDays: Number(data.openingPresentDays ?? 0),
+      openingAbsentDays: Number(data.openingAbsentDays ?? 0),
     };
     if (student) {
       updateMutation.mutate({ id: student.id, data: payload as UpdateStudentInput }, { onSuccess });
@@ -311,10 +397,8 @@ function StudentFormDialog({
               <div className="space-y-1.5">
                 <Label>Course *</Label>
                 <Controller name="courseId" control={control} rules={{ required: true }} render={({ field }) => (
-                  <Select value={String(field.value ?? "")} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select course..." />
-                    </SelectTrigger>
+                  <Select value={String(field.value ?? "")} onValueChange={(v) => { field.onChange(Number(v)); setValue("classId", null); }}>
+                    <SelectTrigger><SelectValue placeholder="Select course..." /></SelectTrigger>
                     <SelectContent>
                       {courses.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.durationMonths}m)</SelectItem>)}
                     </SelectContent>
@@ -323,13 +407,13 @@ function StudentFormDialog({
                 {errors.courseId && <p className="text-xs text-destructive">Course is required</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Controller name="status" control={control} render={({ field }) => (
-                  <Select value={field.value ?? "active"} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Class</Label>
+                <Controller name="classId" control={control} render={({ field }) => (
+                  <Select value={field.value ? String(field.value) : "none"} onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}>
+                    <SelectTrigger><SelectValue placeholder="No class" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="none">— No class —</SelectItem>
+                      {filteredClasses.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.className}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
@@ -338,8 +422,28 @@ function StudentFormDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Controller name="status" control={control} render={({ field }) => (
+                  <Select value={field.value ?? "active"} onValueChange={field.onChange}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-1.5">
                 <Label>Enrollment Date *</Label>
                 <Input type="date" {...register("enrollmentDate", { required: true })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Batch Start Date</Label>
+                <Input type="date" {...register("batchStartDate")} />
               </div>
               <div className="space-y-1.5">
                 <Label>End Date (auto)</Label>
@@ -394,6 +498,30 @@ function StudentFormDialog({
                 </div>
               </div>
             )}
+
+            {/* Opening Balance / Migration Data */}
+            <div className="border border-dashed border-border rounded-lg p-4 space-y-3 bg-muted/10">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Opening Balance (Migration / Historical)</p>
+              <p className="text-xs text-muted-foreground">Fill this only for existing students being migrated into the system.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Paid Amount (PKR)</Label>
+                  <Input type="number" min="0" step="1" {...register("openingPaidAmount", { valueAsNumber: true })} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Pending Amount (PKR)</Label>
+                  <Input type="number" min="0" step="1" {...register("openingPendingAmount", { valueAsNumber: true })} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Present Days</Label>
+                  <Input type="number" min="0" {...register("openingPresentDays", { valueAsNumber: true })} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Absent Days</Label>
+                  <Input type="number" min="0" {...register("openingAbsentDays", { valueAsNumber: true })} placeholder="0" />
+                </div>
+              </div>
+            </div>
           </form>
         </div>
 

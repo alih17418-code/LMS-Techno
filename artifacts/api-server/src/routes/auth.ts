@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createHash } from "crypto";
+import { requireAdmin, requireAuth } from "../middlewares/auth";
 
 const router = Router();
 
@@ -77,8 +78,8 @@ router.get("/auth/me", async (req, res) => {
   return res.json(toUserResponse(user));
 });
 
-// GET /auth/users
-router.get("/auth/users", async (req, res) => {
+// GET /auth/users — admin only
+router.get("/auth/users", requireAdmin, async (req, res) => {
   const users = await db.select({
     id: usersTable.id,
     username: usersTable.username,
@@ -91,8 +92,8 @@ router.get("/auth/users", async (req, res) => {
   return res.json(users);
 });
 
-// POST /auth/users
-router.post("/auth/users", async (req, res) => {
+// POST /auth/users — admin only
+router.post("/auth/users", requireAdmin, async (req, res) => {
   const { username, password, role, displayName, instructorId } = req.body;
   if (!username || !password || !role || !displayName) {
     return res.status(400).json({ error: "All fields required" });
@@ -115,8 +116,8 @@ router.post("/auth/users", async (req, res) => {
   });
 });
 
-// PUT /auth/users/:id
-router.put("/auth/users/:id", async (req, res) => {
+// PUT /auth/users/:id — admin only
+router.put("/auth/users/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { displayName, role, isActive, password, instructorId } = req.body;
   const update: Partial<typeof usersTable.$inferInsert> = {};
@@ -136,8 +137,8 @@ router.put("/auth/users/:id", async (req, res) => {
   });
 });
 
-// DELETE /auth/users/:id
-router.delete("/auth/users/:id", async (req, res) => {
+// DELETE /auth/users/:id — admin only
+router.delete("/auth/users/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(usersTable).where(eq(usersTable.id, id));
   return res.status(204).send();
