@@ -8,15 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
-import { PlusCircle, Pencil, Trash2, ShieldCheck, KeyRound } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ShieldCheck, KeyRound, Link2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-type UserRow = { id: number; username: string; role: string; displayName: string; isActive: string; createdAt: string };
+type UserRow = { id: number; username: string; role: string; displayName: string; isActive: string; createdAt: string; instructorId?: number | null };
+type InstructorOption = { id: number; name: string; phone?: string };
 
 const ROLES = [
   { value: "admin", label: "Admin", desc: "Full access — manage all data, users, and settings" },
   { value: "staff", label: "Staff", desc: "Can manage students, vouchers, receipts" },
-  { value: "instructor", label: "Instructor", desc: "Can view own attendance and class schedule" },
+  { value: "instructor", label: "Instructor", desc: "Can view own classes, students, and mark attendance" },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -25,8 +26,17 @@ const ROLE_COLORS: Record<string, string> = {
   instructor: "bg-green-100 text-green-700 border-green-200",
 };
 
-function emptyForm() {
-  return { username: "", password: "", displayName: "", role: "staff", isActive: "true" };
+type FormState = {
+  username: string;
+  password: string;
+  displayName: string;
+  role: string;
+  isActive: string;
+  instructorId: string;
+};
+
+function emptyForm(): FormState {
+  return { username: "", password: "", displayName: "", role: "staff", isActive: "true", instructorId: "" };
 }
 
 export default function Roles() {
@@ -34,7 +44,7 @@ export default function Roles() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState<FormState>(emptyForm());
   const [resetPwOpen, setResetPwOpen] = useState(false);
   const [resetPw, setResetPw] = useState("");
   const [resetId, setResetId] = useState<number | null>(null);
@@ -44,18 +54,36 @@ export default function Roles() {
     queryFn: () => apiFetch("/auth/users"),
   });
 
+  const { data: instructors = [] } = useQuery<InstructorOption[]>({
+    queryKey: ["instructors-list"],
+    queryFn: () => apiFetch("/instructors"),
+    select: (data: any[]) => data.map((i) => ({ id: i.id, name: i.name, phone: i.phone })),
+  });
+
   const create = useMutation({
-    mutationFn: (body: typeof form) => apiFetch("/auth/users", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: FormState) => {
+      const payload: Record<string, any> = {
+        username: body.username,
+        password: body.password,
+        displayName: body.displayName,
+        role: body.role,
+        isActive: body.isActive,
+      };
+      if (body.role === "instructor" && body.instructorId) {
+        payload.instructorId = Number(body.instructorId);
+      }
+      return apiFetch("/auth/users", { method: "POST", body: JSON.stringify(payload) });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["auth-users"] });
       setOpen(false); setForm(emptyForm());
-      toast({ title: "User created" });
+      toast({ title: "User created successfully" });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Error creating user", description: e.message, variant: "destructive" }),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<typeof form> }) =>
+    mutationFn: ({ id, data }: { id: number; data: Record<string, any> }) =>
       apiFetch(`/auth/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["auth-users"] });
@@ -74,17 +102,47 @@ export default function Roles() {
 
   const handleEdit = (u: UserRow) => {
     setEditId(u.id);
-    setForm({ username: u.username, password: "", displayName: u.displayName, role: u.role, isActive: u.isActive });
+    setForm({
+      username: u.username,
+      password: "",
+      displayName: u.displayName,
+      role: u.role,
+      isActive: u.isActive,
+      instructorId: u.instructorId ? String(u.instructorId) : "",
+    });
     setOpen(true);
   };
 
   const handleSave = () => {
     if (editId) {
-      const patch: Record<string, string> = { displayName: form.displayName, role: form.role, isActive: form.isActive };
+      const patch: Record<string, any> = {
+        displayName: form.displayName,
+        role: form.role,
+        isActive: form.isActive,
+      };
+      if (form.role === "instructor") {
+        patch.instructorId = form.instructorId ? Number(form.instructorId) : null;
+      } else {
+        patch.instructorId = null;
+      }
       update.mutate({ id: editId, data: patch });
     } else {
+      if (!form.username || !form.password || !form.displayName) {
+        toast({ title: "Missing fields", description: "Username, password, and display name are required.", variant: "destructive" });
+        return;
+      }
+      if (form.role === "instructor" && !form.instructorId) {
+        toast({ title: "Instructor not linked", description: "Please select an instructor record to link to this account.", variant: "destructive" });
+        return;
+      }
       create.mutate(form);
     }
+  };
+
+  // Linked instructor name for display in the table
+  const instructorNameById = (id?: number | null) => {
+    if (!id) return null;
+    return instructors.find((i) => i.id === id)?.name ?? `Instructor #${id}`;
   };
 
   return (
@@ -92,7 +150,7 @@ export default function Roles() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Role Management</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage system users and their access roles.</p>
+          <p className="text-muted-foreground text-sm mt-1">Manage system users and their access roles. Instructor accounts must be linked to an instructor record.</p>
         </div>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); } }}>
           <DialogTrigger asChild>
@@ -122,7 +180,7 @@ export default function Roles() {
               )}
               <div>
                 <Label>Role *</Label>
-                <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
+                <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v, instructorId: "" }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
@@ -136,6 +194,42 @@ export default function Roles() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Instructor link — only shown when role is instructor */}
+              {form.role === "instructor" && (
+                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 p-3 space-y-2">
+                  <Label className="flex items-center gap-1.5 text-green-700 dark:text-green-400 font-semibold text-xs uppercase tracking-wide">
+                    <Link2 className="w-3.5 h-3.5" />
+                    Link to Instructor Record *
+                  </Label>
+                  <Select
+                    value={form.instructorId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, instructorId: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select instructor…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {instructors.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                          No instructors found. Add an instructor first.
+                        </div>
+                      ) : (
+                        instructors.map((i) => (
+                          <SelectItem key={i.id} value={String(i.id)}>
+                            <div>
+                              <p className="font-medium">{i.name}</p>
+                              {i.phone && <p className="text-xs text-muted-foreground">{i.phone}</p>}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">This links the login account to the instructor's profile so they can see their classes, students, and salary.</p>
+                </div>
+              )}
+
               {editId && (
                 <div>
                   <Label>Status</Label>
@@ -148,8 +242,9 @@ export default function Roles() {
                   </Select>
                 </div>
               )}
+
               <Button className="w-full"
-                disabled={create.isPending || update.isPending || !form.displayName || (!editId && (!form.username || !form.password))}
+                disabled={create.isPending || update.isPending}
                 onClick={handleSave}>
                 {create.isPending || update.isPending ? "Saving…" : editId ? "Update User" : "Create User"}
               </Button>
@@ -197,16 +292,16 @@ export default function Roles() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              {["Display Name", "Username", "Role", "Status", "Created", ""].map((h) => (
+              {["Display Name", "Username", "Role", "Linked To", "Status", "Created", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Loading…</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No users found.</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No users found.</td></tr>
             ) : users.map((u) => (
               <tr key={u.id} className="border-t hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium">{u.displayName}</td>
@@ -215,6 +310,14 @@ export default function Roles() {
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${ROLE_COLORS[u.role] ?? "bg-gray-100 text-gray-700"}`}>
                     {u.role}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground text-xs">
+                  {u.role === "instructor"
+                    ? instructorNameById(u.instructorId)
+                      ? <span className="text-green-700 dark:text-green-400 font-medium flex items-center gap-1"><Link2 className="w-3 h-3" />{instructorNameById(u.instructorId)}</span>
+                      : <span className="text-amber-600 font-medium">⚠ Not linked</span>
+                    : <span className="text-muted-foreground/50">—</span>
+                  }
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant={u.isActive === "true" ? "default" : "secondary"}>
