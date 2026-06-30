@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, ilike, and, or, type SQL } from "drizzle-orm";
-import { db, studentsTable, coursesTable, vouchersTable, classesTable, instructorClassesTable } from "@workspace/db";
+import { db, studentsTable, coursesTable, vouchersTable, classesTable, instructorClassesTable, receiptsTable, certificatesTable } from "@workspace/db";
 import { requireAuth, requireAdminOrStaff, requireAdmin, getSessionUser } from "../middlewares/auth";
 
 const router = Router();
@@ -229,23 +229,16 @@ router.put("/students/:id", requireAdminOrStaff, async (req, res) => {
   return res.json(toStudentResponse(updated, updatedCourse));
 });
 
-// DELETE /students/:id — admin only
+// DELETE /students/:id — admin only (cascades receipts, certificates, vouchers, attendance)
 router.delete("/students/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, id));
   if (!existing) return res.status(404).json({ error: "not_found", message: "Student not found" });
-  try {
-    await db.delete(studentsTable).where(eq(studentsTable.id, id));
-    return res.status(204).send();
-  } catch (err: any) {
-    if (err?.code === "23503") {
-      return res.status(400).json({
-        error: "has_records",
-        message: "Cannot delete this student — they have linked vouchers or receipts. Delete those first, or mark the student as inactive instead.",
-      });
-    }
-    throw err;
-  }
+  // Delete restrict-FK children first, then the student (vouchers + attendance cascade)
+  await db.delete(receiptsTable).where(eq(receiptsTable.studentId, id));
+  await db.delete(certificatesTable).where(eq(certificatesTable.studentId, id));
+  await db.delete(studentsTable).where(eq(studentsTable.id, id));
+  return res.status(204).send();
 });
 
 // GET /students/:id/ledger

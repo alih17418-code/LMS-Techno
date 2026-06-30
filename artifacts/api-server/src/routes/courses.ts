@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, coursesTable, studentsTable } from "@workspace/db";
+import { requireAdmin } from "../middlewares/auth";
 
 const router = Router();
 
@@ -90,7 +91,7 @@ router.put("/courses/:id", async (req, res) => {
 });
 
 // DELETE /courses/:id
-router.delete("/courses/:id", async (req, res) => {
+router.delete("/courses/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "bad_request", message: "Invalid ID" });
 
