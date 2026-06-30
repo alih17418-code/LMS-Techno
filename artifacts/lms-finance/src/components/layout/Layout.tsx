@@ -120,7 +120,7 @@ export function Sidebar({ role }: { role?: string }) {
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border min-h-[100dvh] flex flex-col hidden md:flex shrink-0">
       <div className="p-4 border-b border-sidebar-border flex flex-col items-center gap-1 bg-white/95">
-        <img src="/tips-logo.png" alt="TIPS" className="h-12 w-auto object-contain" />
+        <img src="/tips-logo.png" alt="TIPS" className="h-16 w-auto object-contain" />
         <p className="text-[10px] text-slate-500 font-mono tracking-widest">FINANCE SYSTEM</p>
       </div>
       <nav className="flex-1 p-3 space-y-4 overflow-y-auto">

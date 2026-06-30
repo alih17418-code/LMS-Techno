@@ -43,9 +43,11 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/tips-logo.png" alt="TIPS" className="h-16 w-auto mx-auto object-contain mb-4 brightness-200 invert" />
-          <h1 className="text-white font-bold text-xl">TIPS Finance System</h1>
-          <p className="text-blue-300 text-sm">Technospyre Institute of Professional Studies</p>
+          <div className="bg-white rounded-2xl shadow-xl px-8 py-5 inline-block mb-5">
+            <img src="/tips-logo.png" alt="TIPS" className="h-24 w-auto mx-auto object-contain" />
+          </div>
+          <h1 className="text-white font-bold text-xl tracking-wide">TIPS Finance System</h1>
+          <p className="text-blue-300 text-sm mt-1">Technospyre Institute of Professional Studies</p>
         </div>
 
         <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">

@@ -167,7 +167,7 @@ export function printVoucher(v: Voucher): void {
       margin-bottom: 6px;
     }
     .logo {
-      height: 38px;
+      height: 64px;
       width: auto;
       object-fit: contain;
       display: block;
