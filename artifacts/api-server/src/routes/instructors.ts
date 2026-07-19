@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, ilike, and, or, inArray, desc, type SQL } from "drizzle-orm";
-import { db, instructorsTable, instructorPaymentsTable, instructorAttendanceTable, coursesTable, studentsTable, receiptsTable, vouchersTable, classesTable, instructorClassesTable } from "@workspace/db";
+import { db, instructorsTable, instructorPaymentsTable, instructorAttendanceTable, coursesTable, studentsTable, receiptsTable, vouchersTable, classesTable, instructorClassesTable, instructorMonthlyLecturesTable } from "@workspace/db";
 import { requireAuth, requireAdminOrStaff, requireAdmin, getSessionUser } from "../middlewares/auth";
 
 const router = Router();
@@ -132,7 +132,18 @@ router.get("/instructors/:id", requireAuth, async (req, res) => {
     .where(eq(instructorAttendanceTable.instructorId, id))
     .orderBy(desc(instructorAttendanceTable.attendanceDate));
 
-  const totalLectures = attendance.reduce((s, a) => s + (a.lectureCount ?? 1), 0);
+  // Monthly lecture log (the new way to track lectures)
+  const monthlyLectures = await db
+    .select()
+    .from(instructorMonthlyLecturesTable)
+    .where(eq(instructorMonthlyLecturesTable.instructorId, id))
+    .orderBy(desc(instructorMonthlyLecturesTable.year), desc(instructorMonthlyLecturesTable.month));
+
+  const totalLecturesFromLog = monthlyLectures.reduce((s, l) => s + l.lecturesCount, 0);
+  // Also count from daily attendance for backwards compat (if any attendance records exist)
+  const totalLecturesFromAttendance = attendance.reduce((s, a) => s + (a.lectureCount ?? 1), 0);
+  const totalLectures = totalLecturesFromLog + totalLecturesFromAttendance;
+
   const totalPaid = payments.reduce((s, p) => s + parseFloat(p.amountPaid as string), 0);
 
   let totalEarned = 0;
@@ -158,8 +169,6 @@ router.get("/instructors/:id", requireAuth, async (req, res) => {
   }
 
   const assignedClasses = await getInstructorClasses(id);
-
-  // Class-based financial data for instructor portal
   const classFinancials = await getClassFinancials(assignedClasses.map(c => c.classId));
 
   return res.json({
@@ -168,10 +177,19 @@ router.get("/instructors/:id", requireAuth, async (req, res) => {
     classFinancials,
     payments: payments.map((p) => toPaymentResponse(p, instructor)),
     attendance: attendance.map((a) => toAttendanceResponse(a)),
+    monthlyLectures: monthlyLectures.map((l) => ({
+      id: l.id,
+      month: l.month,
+      year: l.year,
+      lecturesCount: l.lecturesCount,
+      notes: l.notes ?? null,
+      monthName: MONTH_NAMES[l.month - 1],
+    })),
     totalLectures,
     totalEarned,
     totalPaid,
     pendingEarnings: Math.max(0, totalEarned - totalPaid),
+    monthlySalary: parseFloat(instructor.monthlySalary as string) || 0,
   });
 });
 
@@ -228,6 +246,64 @@ router.delete("/instructors/:id", requireAdmin, async (req, res) => {
   const [existing] = await db.select().from(instructorsTable).where(eq(instructorsTable.id, id));
   if (!existing) return res.status(404).json({ error: "not_found", message: "Instructor not found" });
   await db.delete(instructorsTable).where(eq(instructorsTable.id, id));
+  return res.status(204).send();
+});
+
+// GET /instructors/:id/lectures — list monthly lecture records
+router.get("/instructors/:id/lectures", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const rows = await db
+    .select()
+    .from(instructorMonthlyLecturesTable)
+    .where(eq(instructorMonthlyLecturesTable.instructorId, id))
+    .orderBy(desc(instructorMonthlyLecturesTable.year), desc(instructorMonthlyLecturesTable.month));
+  return res.json(rows.map((l) => ({
+    id: l.id, month: l.month, year: l.year,
+    lecturesCount: l.lecturesCount, notes: l.notes ?? null,
+    monthName: MONTH_NAMES[l.month - 1],
+  })));
+});
+
+// POST /instructors/:id/lectures — upsert monthly lecture count
+router.post("/instructors/:id/lectures", requireAdminOrStaff, async (req, res) => {
+  const instructorId = Number(req.params.id);
+  const { month, year, lecturesCount, notes } = req.body;
+  if (!month || !year || lecturesCount === undefined) {
+    return res.status(400).json({ error: "month, year, and lecturesCount are required" });
+  }
+  const [existing] = await db
+    .select()
+    .from(instructorMonthlyLecturesTable)
+    .where(and(
+      eq(instructorMonthlyLecturesTable.instructorId, instructorId),
+      eq(instructorMonthlyLecturesTable.month, Number(month)),
+      eq(instructorMonthlyLecturesTable.year, Number(year)),
+    ));
+
+  let record;
+  if (existing) {
+    [record] = await db
+      .update(instructorMonthlyLecturesTable)
+      .set({ lecturesCount: Number(lecturesCount), notes: notes ?? null })
+      .where(eq(instructorMonthlyLecturesTable.id, existing.id))
+      .returning();
+  } else {
+    [record] = await db
+      .insert(instructorMonthlyLecturesTable)
+      .values({ instructorId, month: Number(month), year: Number(year), lecturesCount: Number(lecturesCount), notes: notes ?? null })
+      .returning();
+  }
+  return res.status(201).json({
+    id: record.id, month: record.month, year: record.year,
+    lecturesCount: record.lecturesCount, notes: record.notes ?? null,
+    monthName: MONTH_NAMES[record.month - 1],
+  });
+});
+
+// DELETE /instructors/:id/lectures/:lectureId — remove a monthly lecture record
+router.delete("/instructors/:id/lectures/:lectureId", requireAdminOrStaff, async (req, res) => {
+  const lectureId = Number(req.params.lectureId);
+  await db.delete(instructorMonthlyLecturesTable).where(eq(instructorMonthlyLecturesTable.id, lectureId));
   return res.status(204).send();
 });
 

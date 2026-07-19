@@ -275,7 +275,7 @@ export default function Instructors() {
                     <tr className="border-b border-border bg-muted/30">
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Code</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Specialization</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Subject</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Model</th>
                       <th className="text-right px-4 py-3 font-medium text-muted-foreground">Rate</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Classes</th>
@@ -375,8 +375,8 @@ export default function Instructors() {
               <Input value={form.address} onChange={(e) => setField("address", e.target.value)} placeholder="Optional" />
             </div>
             <div className="space-y-1">
-              <Label>Specialization</Label>
-              <Input value={form.specialization} onChange={(e) => setField("specialization", e.target.value)} placeholder="e.g. Web Development" />
+              <Label>Subject</Label>
+              <Input value={form.specialization} onChange={(e) => setField("specialization", e.target.value)} placeholder="e.g. MS Office, Web Development" />
             </div>
             <div className="space-y-1">
               <Label>Course</Label>
