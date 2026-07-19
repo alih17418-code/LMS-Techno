@@ -125,6 +125,45 @@ router.post("/students", requireAdminOrStaff, async (req, res) => {
     })
     .returning();
 
+  // Create historical vouchers + receipts for already-paid months
+  const paidMonths = Number(openingMonthsPaid ?? 0);
+  if (paidMonths > 0) {
+    const disc = Number(discountAmount ?? 0);
+    const totalPayable = Math.max(0, Number(courseRow.monthlyFee) * courseRow.durationMonths - disc);
+    const effectiveMonthly = courseRow.durationMonths > 0 ? totalPayable / courseRow.durationMonths : Number(courseRow.monthlyFee);
+    const feeStr = effectiveMonthly.toFixed(2);
+    const baseDate = new Date(enrollmentDate);
+
+    for (let i = 0; i < paidMonths; i++) {
+      const d = new Date(baseDate);
+      d.setMonth(d.getMonth() + i);
+      const month = d.getMonth() + 1;
+      const year = d.getFullYear();
+
+      const [voucher] = await db.insert(vouchersTable).values({
+        studentId: student.id,
+        month,
+        year,
+        voucherType: "monthly",
+        totalFee: feeStr,
+        totalReceived: feeStr,
+        pendingAmount: "0.00",
+        status: "paid",
+      }).returning();
+
+      const receiptNumber = `OPEN-${studentCode}-M${i + 1}`;
+      await db.insert(receiptsTable).values({
+        receiptNumber,
+        voucherId: voucher.id,
+        studentId: student.id,
+        amountReceived: feeStr,
+        paymentMethod: "cash",
+        remarks: "Opening balance — paid before system migration",
+        paymentDate: d.toISOString().slice(0, 10),
+      });
+    }
+  }
+
   return res.status(201).json(toStudentResponse(student, courseRow));
 });
 

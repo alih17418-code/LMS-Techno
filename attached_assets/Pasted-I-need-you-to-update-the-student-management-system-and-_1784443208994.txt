@@ -1,0 +1,165 @@
+I need you to update the student management system and dashboard with the following changes. Please do not break any existing functionality.
+
+1. Student Creation & Previous Payments
+
+When creating a new student:
+
+There is a monthly fee (example: Rs. 5,000/month).
+There is also a discount field.
+There is an "Already Paid Months" field.
+Required Logic
+
+Example:
+
+Monthly Fee = Rs. 5,000
+Course Duration = 3 months
+Total Course Fee = Rs. 15,000
+Already Paid Months = 2
+
+This means:
+
+Paid Amount = Rs. 10,000
+Remaining Amount = Rs. 5,000
+
+The system must automatically calculate and display:
+
+Monthly Fee
+Course Total Fee
+Paid Amount
+Remaining Balance
+
+The remaining balance should be saved in the database and shown everywhere in the system.
+
+Also, when a student is created:
+
+Their previous payment records must automatically be created and stored.
+These records should appear in:
+Student profile
+Payment history
+Dashboard statistics
+2. Dashboard Changes
+
+Currently the dashboard shows "Total Generated".
+
+Remove this completely.
+
+Instead, show the following:
+
+Monthly Expected Income
+
+Calculate the sum of all students' monthly fees.
+
+Example:
+
+Student A = Rs. 6,000/month
+
+Student B = Rs. 5,000/month
+
+Monthly Total = Rs. 11,000
+
+Display:
+
+Total Monthly Fees = Rs. 11,000
+
+Course Total
+
+If the IICT course duration is 3 months:
+
+Student A = 6,000 × 3 = 18,000
+
+Student B = 5,000 × 3 = 15,000
+
+Total Course Value = Rs. 33,000
+
+Display:
+
+Total Course Fees = Rs. 33,000
+
+Also show this course-wise.
+
+Example:
+
+IICT
+
+Students
+Monthly Total
+Course Total
+
+If there are multiple courses, calculate each separately.
+
+3. Teacher Expense Calculation
+
+This is a very important feature.
+
+Teachers are paid lecture-wise, not monthly.
+
+Each batch may have multiple teachers.
+
+The dashboard should calculate:
+
+For each batch:
+
+Total Monthly Student Fees
+Total Teacher Payments
+Institute Profit
+
+Formula:
+
+Profit = Total Student Fees - Total Teacher Payments
+
+Example:
+
+Batch Monthly Fees = Rs. 40,000
+
+Teacher A = Rs. 8,000
+
+Teacher B = Rs. 7,000
+
+Total Teacher Cost = Rs. 15,000
+
+Institute Profit = Rs. 25,000
+
+Display these values for every batch.
+
+4. Dashboard Cards
+
+Replace the existing cards with:
+
+Total Students
+Monthly Expected Fees
+Total Course Fees
+Total Collected
+Total Remaining Balance
+Total Teacher Payments
+Institute Profit
+Course-wise Totals
+Batch-wise Profit
+5. Remaining Balance
+
+The remaining balance is the most important value.
+
+It should always be calculated as:
+
+Remaining Balance = Total Course Fee - Total Paid
+
+It should automatically update whenever:
+
+A student is created
+A payment is added
+A discount is changed
+Already Paid Months is changed
+
+The remaining balance should be visible in:
+
+Student Profile
+Dashboard
+Payment History
+Reports
+6. Requirements
+Do not remove or break any existing functionality.
+Update both the backend and frontend.
+Update all calculations automatically.
+Ensure dashboard values update in real time after adding or editing students or payments.
+Make sure all totals are calculated correctly even when multiple batches, courses, teachers, and discounts exist.
+
+Please implement these changes carefully and verify that all financial calculations are accurate.

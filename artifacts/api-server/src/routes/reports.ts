@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, type SQL } from "drizzle-orm";
-import { db, studentsTable, vouchersTable, receiptsTable, coursesTable, instructorsTable, instructorPaymentsTable, instructorAttendanceTable } from "@workspace/db";
+import { eq, and, desc, type SQL } from "drizzle-orm";
+import { db, studentsTable, vouchersTable, receiptsTable, coursesTable, instructorsTable, instructorPaymentsTable, instructorAttendanceTable, classesTable } from "@workspace/db";
 
 const router = Router();
 
@@ -11,45 +11,124 @@ const MONTH_NAMES = [
 
 // GET /reports/dashboard
 router.get("/reports/dashboard", async (_req, res) => {
-  const allStudents = await db.select().from(studentsTable);
-  const allVouchers = await db.select().from(vouchersTable);
-  const allCourses = await db.select().from(coursesTable);
+  const [allStudents, allVouchers, allReceipts, allCourses, allInstructorPayments, allClasses] = await Promise.all([
+    db.select().from(studentsTable),
+    db.select().from(vouchersTable),
+    db.select().from(receiptsTable),
+    db.select().from(coursesTable),
+    db.select().from(instructorPaymentsTable),
+    db.select().from(classesTable),
+  ]);
 
-  const totalFeeGenerated = allVouchers.reduce((s, v) => s + parseFloat(v.totalFee as string), 0);
-  const totalReceived = allVouchers.reduce((s, v) => s + parseFloat(v.totalReceived as string), 0);
-  const totalPending = allVouchers.reduce((s, v) => s + parseFloat(v.pendingAmount as string), 0);
+  const courseMap = new Map(allCourses.map(c => [c.id, c]));
 
+  function getStudentFinancials(s: typeof studentsTable.$inferSelect) {
+    const course = s.courseId ? courseMap.get(s.courseId) : null;
+    const monthlyFee = course ? Number(course.monthlyFee) : 0;
+    const duration = course ? course.durationMonths : 1;
+    const discount = Number(s.discountAmount) || 0;
+    const totalPayable = Math.max(0, monthlyFee * duration - discount);
+    const effectiveMonthly = duration > 0 ? totalPayable / duration : 0;
+    const openingPaid = Number(s.openingPaidAmount) || 0;
+    return { effectiveMonthly, totalPayable, openingPaid };
+  }
+
+  const activeStudents = allStudents.filter(s => s.status === "active");
+  const monthlyExpectedFees = activeStudents.reduce((sum, s) => sum + getStudentFinancials(s).effectiveMonthly, 0);
+  const totalCourseFees = allStudents.reduce((sum, s) => sum + getStudentFinancials(s).totalPayable, 0);
+  const totalOpeningPaid = allStudents.reduce((sum, s) => sum + getStudentFinancials(s).openingPaid, 0);
+  const totalReceiptsPaid = allReceipts.reduce((sum, r) => sum + Number(r.amountReceived), 0);
+  const totalCollected = totalOpeningPaid + totalReceiptsPaid;
+  const totalRemainingBalance = Math.max(0, totalCourseFees - totalCollected);
+  const totalTeacherPayments = allInstructorPayments.reduce((sum, p) => sum + Number(p.amountPaid), 0);
+  const instituteProfit = totalCollected - totalTeacherPayments;
+
+  // Course breakdown
+  const courseBreakdown = allCourses.map(course => {
+    const cStudents = allStudents.filter(s => s.courseId === course.id);
+    if (cStudents.length === 0) return null;
+    const studentIds = new Set(cStudents.map(s => s.id));
+    const cVouchers = allVouchers.filter(v => studentIds.has(v.studentId));
+    const cReceipts = allReceipts.filter(r => studentIds.has(r.studentId));
+    const openingPaid = cStudents.reduce((sum, s) => sum + (Number(s.openingPaidAmount) || 0), 0);
+    const receiptsPaid = cReceipts.reduce((sum, r) => sum + Number(r.amountReceived), 0);
+    const collected = openingPaid + receiptsPaid;
+    const monthlyTotal = cStudents.filter(s => s.status === "active").reduce((sum, s) => sum + getStudentFinancials(s).effectiveMonthly, 0);
+    const courseTotal = cStudents.reduce((sum, s) => sum + getStudentFinancials(s).totalPayable, 0);
+    const remaining = Math.max(0, courseTotal - collected);
+    return {
+      course: course.name,
+      courseId: course.id,
+      totalStudents: cStudents.length,
+      activeStudents: cStudents.filter(s => s.status === "active").length,
+      monthlyTotal,
+      courseTotal,
+      collected,
+      remaining,
+      totalFeeGenerated: cVouchers.reduce((s, v) => s + Number(v.totalFee), 0),
+      totalReceived: collected,
+      paidCount: cVouchers.filter(v => v.status === "paid").length,
+      unpaidCount: cVouchers.filter(v => v.status === "unpaid").length,
+    };
+  }).filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // Batch breakdown (by class)
+  const batchBreakdown = allClasses.map(cls => {
+    const bStudents = allStudents.filter(s => s.classId === cls.id);
+    if (bStudents.length === 0) return null;
+    const studentIds = new Set(bStudents.map(s => s.id));
+    const bReceipts = allReceipts.filter(r => studentIds.has(r.studentId));
+    const openingPaid = bStudents.reduce((sum, s) => sum + (Number(s.openingPaidAmount) || 0), 0);
+    const receiptsPaid = bReceipts.reduce((sum, r) => sum + Number(r.amountReceived), 0);
+    const monthlyFees = bStudents.filter(s => s.status === "active").reduce((sum, s) => sum + getStudentFinancials(s).effectiveMonthly, 0);
+    const teacherPayments = cls.instructorId
+      ? allInstructorPayments.filter(p => p.instructorId === cls.instructorId).reduce((sum, p) => sum + Number(p.amountPaid), 0)
+      : 0;
+    return {
+      classId: cls.id,
+      className: cls.className,
+      courseName: cls.courseName,
+      batch: cls.batch ?? null,
+      totalStudents: bStudents.length,
+      monthlyFees,
+      totalCollected: openingPaid + receiptsPaid,
+      teacherPayments,
+      profit: monthlyFees - teacherPayments,
+    };
+  }).filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // Recent receipts (newest first)
   const recentRows = await db
     .select({ receipt: receiptsTable, student: studentsTable, voucher: vouchersTable })
     .from(receiptsTable)
     .innerJoin(studentsTable, eq(receiptsTable.studentId, studentsTable.id))
     .innerJoin(vouchersTable, eq(receiptsTable.voucherId, vouchersTable.id))
-    .orderBy(receiptsTable.createdAt)
+    .orderBy(desc(receiptsTable.createdAt))
     .limit(10);
-
   const recentReceipts = recentRows.map(({ receipt, student, voucher }) =>
     toReceiptResponse(receipt, student, voucher)
   );
 
-  // Course breakdown — all courses
-  const courseBreakdown = allCourses.map((course) => {
-    const courseStudents = allStudents.filter((s) => s.courseId === course.id);
-    const studentIds = new Set(courseStudents.map((s) => s.id));
-    const courseVouchers = allVouchers.filter((v) => studentIds.has(v.studentId));
-    return buildClassReport(course.name, course.id, courseStudents.length, courseVouchers);
-  });
+  const totalFeeGenerated = allVouchers.reduce((s, v) => s + Number(v.totalFee), 0);
 
   return res.json({
     totalStudents: allStudents.length,
-    activeStudents: allStudents.filter((s) => s.status === "active").length,
+    activeStudents: activeStudents.length,
+    monthlyExpectedFees,
+    totalCourseFees,
+    totalCollected,
+    totalRemainingBalance,
+    totalTeacherPayments,
+    instituteProfit,
     totalFeeGenerated,
-    totalReceived,
-    totalPending,
-    paidVouchers: allVouchers.filter((v) => v.status === "paid").length,
-    partialVouchers: allVouchers.filter((v) => v.status === "partial").length,
-    unpaidVouchers: allVouchers.filter((v) => v.status === "unpaid").length,
+    totalReceived: totalReceiptsPaid,
+    totalPending: totalRemainingBalance,
+    paidVouchers: allVouchers.filter(v => v.status === "paid").length,
+    partialVouchers: allVouchers.filter(v => v.status === "partial").length,
+    unpaidVouchers: allVouchers.filter(v => v.status === "unpaid").length,
     recentReceipts,
     courseBreakdown,
+    batchBreakdown,
   });
 });
 
