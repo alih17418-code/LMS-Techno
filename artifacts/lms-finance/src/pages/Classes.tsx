@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
-import { PlusCircle, Pencil, Trash2, School, Plus } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, School, Plus, Users, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { Badge } from "@/components/ui/badge";
 
 type ClassRecord = {
   id: number; className: string; courseId: number; courseName: string;
@@ -18,6 +19,7 @@ type ClassRecord = {
 };
 type Course = { id: number; name: string; };
 type Instructor = { id: number; name: string; };
+type ClassInstructor = { id: number; instructorId: number; instructorName: string; subject: string | null; };
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -46,6 +48,11 @@ export default function Classes() {
   const [quickCourseOpen, setQuickCourseOpen] = useState(false);
   const [courseForm, setCourseForm] = useState(emptyCourseForm());
 
+  // Manage instructors dialog state
+  const [managingClass, setManagingClass] = useState<ClassRecord | null>(null);
+  const [addInstructorId, setAddInstructorId] = useState("none");
+  const [addSubject, setAddSubject] = useState("");
+
   const { data: classes = [], isLoading } = useQuery<ClassRecord[]>({
     queryKey: ["classes"],
     queryFn: () => apiFetch("/classes"),
@@ -57,6 +64,13 @@ export default function Classes() {
   const { data: instructors = [] } = useQuery<Instructor[]>({
     queryKey: ["instructors"],
     queryFn: () => apiFetch("/instructors"),
+  });
+
+  // Load instructors for the currently managed class
+  const { data: classInstructors = [], isLoading: loadingCI } = useQuery<ClassInstructor[]>({
+    queryKey: ["class-instructors", managingClass?.id],
+    queryFn: () => apiFetch(`/classes/${managingClass!.id}/instructors`),
+    enabled: !!managingClass,
   });
 
   const upsert = useMutation({
@@ -86,6 +100,30 @@ export default function Classes() {
       setQuickCourseOpen(false);
       setCourseForm(emptyCourseForm());
       toast({ title: "Course added", description: `${newCourse.name} has been added and selected.` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const assignInstructor = useMutation({
+    mutationFn: ({ classId, instructorId, subject }: { classId: number; instructorId: number; subject: string }) =>
+      apiFetch(`/classes/${classId}/instructors`, { method: "POST", body: JSON.stringify({ instructorId, subject }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-instructors", managingClass?.id] });
+      qc.invalidateQueries({ queryKey: ["classes"] });
+      setAddInstructorId("none");
+      setAddSubject("");
+      toast({ title: "Instructor assigned" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const removeInstructor = useMutation({
+    mutationFn: ({ classId, instructorId }: { classId: number; instructorId: number }) =>
+      apiFetch(`/classes/${classId}/instructors/${instructorId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["class-instructors", managingClass?.id] });
+      qc.invalidateQueries({ queryKey: ["classes"] });
+      toast({ title: "Instructor removed" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -126,6 +164,11 @@ export default function Classes() {
     addCourse.mutate(body);
   };
 
+  const handleAssignInstructor = () => {
+    if (!managingClass || addInstructorId === "none") return;
+    assignInstructor.mutate({ classId: managingClass.id, instructorId: Number(addInstructorId), subject: addSubject.trim() });
+  };
+
   // Instructors only see their own classes
   const filtered = classes
     .filter((c) => !isInstructor || !myInstructorId || c.instructorId === myInstructorId)
@@ -134,6 +177,10 @@ export default function Classes() {
       c.courseName.toLowerCase().includes(search.toLowerCase()) ||
       (c.instructorName ?? "").toLowerCase().includes(search.toLowerCase())
     );
+
+  // Which instructors can still be added to the managing class?
+  const assignedIds = new Set(classInstructors.map(ci => ci.instructorId));
+  const availableInstructors = instructors.filter(i => !assignedIds.has(i.id));
 
   return (
     <div className="space-y-6">
@@ -181,7 +228,7 @@ export default function Classes() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Instructor</Label>
+                    <Label>Primary Instructor</Label>
                     <Select value={form.instructorId} onValueChange={(v) => setForm((f) => ({ ...f, instructorId: v }))}>
                       <SelectTrigger><SelectValue placeholder="Assign instructor" /></SelectTrigger>
                       <SelectContent>
@@ -239,7 +286,7 @@ export default function Classes() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              {["Class Name", "Course", "Instructor", "Batch / Section", "Year", "Semester", ...(canEdit || canDelete ? [""] : [])].map((h) => (
+              {["Class Name", "Course", "Instructors", "Batch / Section", "Year", "Semester", ...(canEdit || canDelete ? [""] : [])].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -256,7 +303,9 @@ export default function Classes() {
               <tr key={c.id} className="border-t hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium">{c.className}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.courseName}</td>
-                <td className="px-4 py-3 text-muted-foreground">{c.instructorName ?? "—"}</td>
+                <td className="px-4 py-3">
+                  <ClassInstructorCell classId={c.id} primaryName={c.instructorName} />
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{[c.batch, c.section ? `Sec ${c.section}` : ""].filter(Boolean).join(" / ") || "—"}</td>
                 <td className="px-4 py-3">{c.year}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.semester ? `Sem ${c.semester}` : "—"}</td>
@@ -264,9 +313,14 @@ export default function Classes() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       {canEdit && (
-                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEdit(c)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
+                        <>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEdit(c)} title="Edit class">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50" onClick={() => { setManagingClass(c); setAddInstructorId("none"); setAddSubject(""); }} title="Manage instructors">
+                            <Users className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
                       )}
                       {canDelete && (
                         <AlertDialog>
@@ -295,6 +349,77 @@ export default function Classes() {
           </tbody>
         </table>
       </div>
+
+      {/* Manage Instructors Dialog */}
+      <Dialog open={!!managingClass} onOpenChange={(o) => { if (!o) setManagingClass(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Instructors — {managingClass?.className}</DialogTitle>
+            <DialogDescription>Assign multiple instructors with their subjects to this class.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Current instructors */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Assigned Instructors</Label>
+              <div className="mt-2 space-y-2">
+                {loadingCI ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : classInstructors.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No instructors assigned yet.</p>
+                ) : classInstructors.map((ci) => (
+                  <div key={ci.id} className="flex items-center justify-between rounded-lg border px-3 py-2 bg-muted/30">
+                    <div>
+                      <span className="font-medium text-sm">{ci.instructorName}</span>
+                      {ci.subject && <span className="ml-2 text-xs text-muted-foreground">— {ci.subject}</span>}
+                    </div>
+                    {canEdit && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => removeInstructor.mutate({ classId: managingClass!.id, instructorId: ci.instructorId })}
+                        disabled={removeInstructor.isPending}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Add new instructor */}
+            {canEdit && (
+              <div className="border-t pt-4">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Add Instructor</Label>
+                <div className="mt-2 space-y-3">
+                  <div>
+                    <Label>Instructor</Label>
+                    <Select value={addInstructorId} onValueChange={setAddInstructorId}>
+                      <SelectTrigger><SelectValue placeholder="Select instructor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Select —</SelectItem>
+                        {availableInstructors.map((i) => (
+                          <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {availableInstructors.length === 0 && instructors.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">All instructors already assigned.</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Subject (optional)</Label>
+                    <Input placeholder="e.g. Mathematics, English, MS Office…" value={addSubject}
+                      onChange={(e) => setAddSubject(e.target.value)} />
+                  </div>
+                  <Button className="w-full" disabled={assignInstructor.isPending || addInstructorId === "none"}
+                    onClick={handleAssignInstructor}>
+                    {assignInstructor.isPending ? "Assigning…" : "Assign Instructor"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick-add Course Dialog — opened from within the class form */}
       <Dialog open={quickCourseOpen} onOpenChange={setQuickCourseOpen}>
@@ -361,6 +486,28 @@ export default function Classes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Small inline component to show instructor badges per class row
+function ClassInstructorCell({ classId, primaryName }: { classId: number; primaryName?: string }) {
+  const { data: cis = [], isLoading } = useQuery<ClassInstructor[]>({
+    queryKey: ["class-instructors", classId],
+    queryFn: () => apiFetch(`/classes/${classId}/instructors`),
+    staleTime: 60_000,
+  });
+
+  if (isLoading) return <span className="text-muted-foreground text-xs">…</span>;
+  if (cis.length === 0) return <span className="text-muted-foreground">—</span>;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {cis.map((ci) => (
+        <Badge key={ci.id} variant="secondary" className="text-xs font-normal">
+          {ci.instructorName}{ci.subject ? ` (${ci.subject})` : ""}
+        </Badge>
+      ))}
     </div>
   );
 }

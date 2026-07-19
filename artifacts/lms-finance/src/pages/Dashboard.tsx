@@ -1,15 +1,17 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency, getMonthName } from "@/lib/utils";
 import {
   Users, Banknote, CreditCard, AlertCircle, ArrowUpRight, ArrowDownRight,
   School, UserCheck, GraduationCap, TrendingUp, CheckCircle2,
-  Wallet, BookCheck, PiggyBank, BarChart3,
+  Wallet, BookCheck, PiggyBank, BarChart3, Filter,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DashboardData = {
   totalStudents: number;
@@ -63,6 +65,8 @@ type DashboardData = {
   }>;
 };
 
+type ClassRecord = { id: number; className: string; courseName: string; };
+
 export default function Dashboard() {
   const { isAdmin, isStaff, isInstructor, user } = useAuth();
 
@@ -74,6 +78,8 @@ export default function Dashboard() {
 // ── Admin Dashboard ──────────────────────────────────────────────────────
 
 function AdminDashboard() {
+  const [selectedClassId, setSelectedClassId] = useState<string>("all");
+
   const { data, isLoading, error } = useQuery<DashboardData>({
     queryKey: ["dashboard-summary"],
     queryFn: () => apiFetch("/reports/dashboard"),
@@ -84,7 +90,7 @@ function AdminDashboard() {
     queryKey: ["instructors"],
     queryFn: () => apiFetch("/instructors"),
   });
-  const { data: classes = [] } = useQuery<any[]>({
+  const { data: classes = [] } = useQuery<ClassRecord[]>({
     queryKey: ["classes"],
     queryFn: () => apiFetch("/classes"),
   });
@@ -98,85 +104,166 @@ function AdminDashboard() {
     );
   }
 
+  // Derive class-filtered view
+  const selectedBatch = selectedClassId !== "all"
+    ? data?.batchBreakdown?.find(b => b.classId === Number(selectedClassId))
+    : null;
+
+  // Aggregate numbers based on filter
+  const stats = selectedBatch
+    ? {
+        totalStudents: selectedBatch.totalStudents,
+        monthlyExpectedFees: selectedBatch.monthlyFees,
+        totalCollected: selectedBatch.totalCollected,
+        totalTeacherPayments: selectedBatch.teacherPayments,
+        profit: selectedBatch.profit,
+      }
+    : {
+        totalStudents: data?.totalStudents ?? 0,
+        monthlyExpectedFees: data?.monthlyExpectedFees ?? 0,
+        totalCollected: data?.totalCollected ?? 0,
+        totalTeacherPayments: data?.totalTeacherPayments ?? 0,
+        profit: data?.instituteProfit ?? 0,
+      };
+
+  const isFiltered = selectedClassId !== "all";
+  const filteredBatches = isFiltered
+    ? (data?.batchBreakdown ?? []).filter(b => b.classId === Number(selectedClassId))
+    : (data?.batchBreakdown ?? []);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Full system overview and financial analytics.</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isFiltered && selectedBatch
+              ? `Showing data for: ${selectedBatch.className} (${selectedBatch.courseName})`
+              : "Full system overview and financial analytics."}
+          </p>
+        </div>
+        {/* Class filter */}
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Filter by class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes (Overall)</SelectItem>
+              {(data?.batchBreakdown ?? []).map(b => (
+                <SelectItem key={b.classId} value={String(b.classId)}>
+                  {b.className}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Row 1: Counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard title="Total Students" value={data?.totalStudents} subtitle={`${data?.activeStudents ?? 0} active`} icon={<Users className="w-4 h-4 text-primary" />} loading={isLoading} />
-        <MetricCard title="Total Classes" value={classes.length} subtitle="All classes" icon={<School className="w-4 h-4 text-blue-500" />} loading={isLoading} />
-        <MetricCard title="Total Instructors" value={instructors.length} subtitle={`${instructors.filter((i: any) => i.status === "active").length} active`} icon={<UserCheck className="w-4 h-4 text-purple-500" />} loading={isLoading} />
-        <MetricCard title="Active Courses" value={data?.courseBreakdown?.length} subtitle="With enrolled students" icon={<GraduationCap className="w-4 h-4 text-orange-500" />} loading={isLoading} />
+        <MetricCard
+          title={isFiltered ? "Students (this class)" : "Total Students"}
+          value={stats.totalStudents}
+          subtitle={isFiltered ? selectedBatch?.className : `${data?.activeStudents ?? 0} active`}
+          icon={<Users className="w-4 h-4 text-primary" />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title="Total Classes"
+          value={isFiltered ? 1 : classes.length}
+          subtitle={isFiltered ? selectedBatch?.className : "All classes"}
+          icon={<School className="w-4 h-4 text-blue-500" />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title="Total Instructors"
+          value={instructors.length}
+          subtitle={`${instructors.filter((i: any) => i.status === "active").length} active`}
+          icon={<UserCheck className="w-4 h-4 text-purple-500" />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title="Active Courses"
+          value={isFiltered ? 1 : data?.courseBreakdown?.length}
+          subtitle={isFiltered ? selectedBatch?.courseName : "With enrolled students"}
+          icon={<GraduationCap className="w-4 h-4 text-orange-500" />}
+          loading={isLoading}
+        />
       </div>
 
       {/* Row 2: Fee overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard title="Monthly Expected Fees" value={data ? formatCurrency(data.monthlyExpectedFees) : undefined} subtitle="Sum of all active students' monthly fees" icon={<Banknote className="w-4 h-4 text-blue-500" />} loading={isLoading} highlight="blue" />
-        <MetricCard title="Total Course Fees" value={data ? formatCurrency(data.totalCourseFees) : undefined} subtitle="Full payable across all students" icon={<BookCheck className="w-4 h-4 text-indigo-500" />} loading={isLoading} highlight="blue" />
-        <MetricCard title="Total Collected" value={data ? formatCurrency(data.totalCollected) : undefined} subtitle="Receipts + opening payments" icon={<ArrowDownRight className="w-4 h-4 text-green-500" />} loading={isLoading} highlight="green" />
+        <MetricCard
+          title="Monthly Expected Fees"
+          value={formatCurrency(stats.monthlyExpectedFees)}
+          subtitle={isFiltered ? "This class monthly fees" : "Sum of all active students' monthly fees"}
+          icon={<Banknote className="w-4 h-4 text-blue-500" />}
+          loading={isLoading}
+          highlight="blue"
+        />
+        <MetricCard
+          title={isFiltered ? "Total Collected (class)" : "Total Course Fees"}
+          value={isFiltered ? formatCurrency(stats.totalCollected) : formatCurrency(data?.totalCourseFees ?? 0)}
+          subtitle={isFiltered ? "All receipts for this class" : "Full payable across all students"}
+          icon={<BookCheck className="w-4 h-4 text-indigo-500" />}
+          loading={isLoading}
+          highlight="blue"
+        />
+        <MetricCard
+          title="Total Collected"
+          value={formatCurrency(stats.totalCollected)}
+          subtitle={isFiltered ? "Class receipts + opening" : "Receipts + opening payments"}
+          icon={<ArrowDownRight className="w-4 h-4 text-green-500" />}
+          loading={isLoading}
+          highlight="green"
+        />
       </div>
 
       {/* Row 3: Balance + Teacher + Profit */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard title="Remaining Balance" value={data ? formatCurrency(data.totalRemainingBalance) : undefined} subtitle="Total Course Fees − Collected" icon={<ArrowUpRight className="w-4 h-4 text-red-500" />} loading={isLoading} highlight="red" />
-        <MetricCard title="Total Teacher Payments" value={data ? formatCurrency(data.totalTeacherPayments) : undefined} subtitle="All instructor salary paid" icon={<Wallet className="w-4 h-4 text-amber-500" />} loading={isLoading} highlight="amber" />
-        <MetricCard title="Institute Profit" value={data ? formatCurrency(data.instituteProfit) : undefined} subtitle="Collected − Teacher Payments" icon={<PiggyBank className="w-4 h-4 text-emerald-500" />} loading={isLoading} highlight={data && data.instituteProfit >= 0 ? "green" : "red"} />
+        <MetricCard
+          title={isFiltered ? "Remaining Balance (class)" : "Remaining Balance"}
+          value={isFiltered
+            ? formatCurrency(Math.max(0, stats.monthlyExpectedFees - stats.totalCollected))
+            : formatCurrency(data?.totalRemainingBalance ?? 0)}
+          subtitle={isFiltered ? "Monthly fees − Collected" : "Total Course Fees − Collected"}
+          icon={<ArrowUpRight className="w-4 h-4 text-red-500" />}
+          loading={isLoading}
+          highlight="red"
+        />
+        <MetricCard
+          title="Total Teacher Payments"
+          value={formatCurrency(stats.totalTeacherPayments)}
+          subtitle={isFiltered ? "Instructor salary for this class" : "All instructor salary paid"}
+          icon={<Wallet className="w-4 h-4 text-amber-500" />}
+          loading={isLoading}
+          highlight="amber"
+        />
+        <MetricCard
+          title="Institute Profit"
+          value={formatCurrency(stats.profit)}
+          subtitle={isFiltered ? "Collected − Teacher Payments" : "Collected − Teacher Payments"}
+          icon={<PiggyBank className="w-4 h-4 text-emerald-500" />}
+          loading={isLoading}
+          highlight={stats.profit >= 0 ? "green" : "red"}
+        />
       </div>
 
-      {/* Course breakdown table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" />Course-wise Financials</CardTitle>
-          <CardDescription>Students, monthly total, course total, collected, and remaining — per course</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? <div className="p-4"><SkeletonList /></div> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Course</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Students</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Monthly Total</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Course Total</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Collected</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Remaining</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.courseBreakdown?.map((c) => (
-                    <tr key={c.courseId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 font-medium">
-                        <div>{c.course}</div>
-                        <div className="text-xs text-muted-foreground">{c.activeStudents} active / {c.totalStudents} total</div>
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{c.totalStudents}</td>
-                      <td className="px-4 py-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatCurrency(c.monthlyTotal)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{formatCurrency(c.courseTotal)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-green-600 dark:text-green-400">{formatCurrency(c.collected)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-red-600 dark:text-red-400">{formatCurrency(c.remaining)}</td>
-                    </tr>
-                  ))}
-                  {!data?.courseBreakdown?.length && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No course data found.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Batch / class profit table */}
-      {(data?.batchBreakdown?.length ?? 0) > 0 && (
+      {filteredBatches.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" />Batch-wise Profit Analysis</CardTitle>
-            <CardDescription>Monthly student fees vs teacher payments per class — institute profit per batch</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              {isFiltered ? "Class Financial Summary" : "Batch-wise Profit Analysis"}
+            </CardTitle>
+            <CardDescription>
+              {isFiltered
+                ? `Detailed financial breakdown for ${selectedBatch?.className}`
+                : "Monthly student fees vs teacher payments per class — institute profit per batch"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -186,12 +273,13 @@ function AdminDashboard() {
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Class / Batch</th>
                     <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Students</th>
                     <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Monthly Fees</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Total Collected</th>
                     <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Teacher Payments</th>
                     <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Profit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.batchBreakdown?.map((b) => (
+                  {filteredBatches.map((b) => (
                     <tr key={b.classId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-medium">{b.className}</div>
@@ -199,6 +287,7 @@ function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground">{b.totalStudents}</td>
                       <td className="px-4 py-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatCurrency(b.monthlyFees)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-green-600 dark:text-green-400">{formatCurrency(b.totalCollected)}</td>
                       <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400">{formatCurrency(b.teacherPayments)}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={`font-mono font-semibold ${b.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
@@ -214,38 +303,88 @@ function AdminDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Voucher status summary */}
+      {/* Course breakdown table — only show when "All" selected */}
+      {!isFiltered && (
         <Card>
           <CardHeader>
-            <CardTitle>Voucher Status</CardTitle>
-            <CardDescription>Payment status across all generated vouchers</CardDescription>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" />Course-wise Financials</CardTitle>
+            <CardDescription>Students, monthly total, course total, collected, and remaining — per course</CardDescription>
           </CardHeader>
-          <CardContent>
-            {isLoading ? <SkeletonList /> : (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Paid</div>
-                  <span className="font-bold text-green-600">{data?.paidVouchers ?? 0}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" /> Partial</div>
-                  <span className="font-bold text-amber-600">{data?.partialVouchers ?? 0}</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" /> Unpaid</div>
-                  <span className="font-bold text-red-600">{data?.unpaidVouchers ?? 0}</span>
-                </div>
+          <CardContent className="p-0">
+            {isLoading ? <div className="p-4"><SkeletonList /></div> : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Course</th>
+                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Students</th>
+                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Monthly Total</th>
+                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Course Total</th>
+                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Collected</th>
+                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.courseBreakdown?.map((c) => (
+                      <tr key={c.courseId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3 font-medium">
+                          <div>{c.course}</div>
+                          <div className="text-xs text-muted-foreground">{c.activeStudents} active / {c.totalStudents} total</div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{c.totalStudents}</td>
+                        <td className="px-4 py-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatCurrency(c.monthlyTotal)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{formatCurrency(c.courseTotal)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-green-600 dark:text-green-400">{formatCurrency(c.collected)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-red-600 dark:text-red-400">{formatCurrency(c.remaining)}</td>
+                      </tr>
+                    ))}
+                    {!data?.courseBreakdown?.length && (
+                      <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No course data found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>
         </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Voucher status summary — only show on "All" */}
+        {!isFiltered && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Voucher Status</CardTitle>
+              <CardDescription>Payment status across all generated vouchers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? <SkeletonList /> : (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Paid</div>
+                    <span className="font-bold text-green-600">{data?.paidVouchers ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" /> Partial</div>
+                    <span className="font-bold text-amber-600">{data?.partialVouchers ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" /> Unpaid</div>
+                    <span className="font-bold text-red-600">{data?.unpaidVouchers ?? 0}</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent receipts */}
-        <Card>
+        <Card className={isFiltered ? "lg:col-span-2" : ""}>
           <CardHeader>
             <CardTitle>Recent Receipts</CardTitle>
-            <CardDescription>Latest recorded payments</CardDescription>
+            <CardDescription>
+              {isFiltered ? `Latest payments for ${selectedBatch?.className}` : "Latest recorded payments"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <SkeletonList /> : (

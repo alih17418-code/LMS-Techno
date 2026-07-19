@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { db, classesTable, coursesTable, instructorsTable, instructorClassesTable } from "@workspace/db";
 import { requireAuth, requireAdminOrStaff, requireAdmin, getSessionUser } from "../middlewares/auth";
 
@@ -123,6 +123,65 @@ router.put("/classes/:id", requireAdminOrStaff, async (req, res) => {
 router.delete("/classes/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(classesTable).where(eq(classesTable.id, id));
+  return res.status(204).send();
+});
+
+// GET /classes/:id/instructors — list all instructors assigned to a class with subjects
+router.get("/classes/:id/instructors", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const rows = await db
+    .select({ ic: instructorClassesTable, inst: instructorsTable })
+    .from(instructorClassesTable)
+    .innerJoin(instructorsTable, eq(instructorClassesTable.instructorId, instructorsTable.id))
+    .where(eq(instructorClassesTable.classId, id));
+  return res.json(rows.map(r => ({
+    id: r.ic.id,
+    instructorId: r.inst.id,
+    instructorName: r.inst.name,
+    subject: r.ic.subject ?? null,
+  })));
+});
+
+// POST /classes/:id/instructors — assign instructor to class with subject
+router.post("/classes/:id/instructors", requireAdminOrStaff, async (req, res) => {
+  const classId = Number(req.params.id);
+  const { instructorId, subject } = req.body;
+  if (!instructorId) return res.status(400).json({ error: "instructorId is required" });
+
+  const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
+  if (!cls) return res.status(404).json({ error: "Class not found" });
+
+  const [instructor] = await db.select().from(instructorsTable).where(eq(instructorsTable.id, Number(instructorId)));
+  if (!instructor) return res.status(404).json({ error: "Instructor not found" });
+
+  await db.insert(instructorClassesTable)
+    .values({ instructorId: Number(instructorId), classId, subject: subject ? String(subject).trim() : null })
+    .onConflictDoNothing();
+
+  // If no primary instructor set yet, set this one
+  if (!cls.instructorId) {
+    await db.update(classesTable).set({ instructorId: instructor.id, instructorName: instructor.name }).where(eq(classesTable.id, classId));
+  }
+
+  const rows = await db
+    .select({ ic: instructorClassesTable, inst: instructorsTable })
+    .from(instructorClassesTable)
+    .innerJoin(instructorsTable, eq(instructorClassesTable.instructorId, instructorsTable.id))
+    .where(eq(instructorClassesTable.classId, classId));
+  return res.status(201).json(rows.map(r => ({
+    id: r.ic.id,
+    instructorId: r.inst.id,
+    instructorName: r.inst.name,
+    subject: r.ic.subject ?? null,
+  })));
+});
+
+// DELETE /classes/:id/instructors/:instructorId — remove instructor from class
+router.delete("/classes/:id/instructors/:instructorId", requireAdminOrStaff, async (req, res) => {
+  const classId = Number(req.params.id);
+  const instructorId = Number(req.params.instructorId);
+  await db.delete(instructorClassesTable)
+    .where(and(eq(instructorClassesTable.classId, classId), eq(instructorClassesTable.instructorId, instructorId)));
   return res.status(204).send();
 });
 
