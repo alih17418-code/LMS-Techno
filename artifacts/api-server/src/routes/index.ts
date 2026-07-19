@@ -12,6 +12,7 @@ import budgetRouter from "./budget";
 import certificatesRouter from "./certificates";
 import classesRouter from "./classes";
 import attendanceRouter from "./attendance";
+import systemLogsRouter from "./system-logs";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(budgetRouter);
 router.use(certificatesRouter);
 router.use(classesRouter);
 router.use(attendanceRouter);
+router.use(systemLogsRouter);
 
 export default router;

@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, BookOpen, Receipt, FileText, CreditCard,
   GraduationCap, UserCheck, Wallet, Award, School, ClipboardCheck,
-  ShieldCheck, Globe, LogOut, LogIn, BookCheck,
+  ShieldCheck, Globe, LogOut, LogIn, BookCheck, ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

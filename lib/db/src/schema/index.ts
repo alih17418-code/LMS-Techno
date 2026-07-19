@@ -13,3 +13,4 @@ export * from "./student_attendance";
 export * from "./certificates";
 export * from "./budget_entries";
 export * from "./instructor_monthly_lectures";
+export * from "./system_logs";

@@ -25,6 +25,8 @@ import StudentAttendance from "@/pages/StudentAttendance";
 import StudentPortal from "@/pages/StudentPortal";
 import Login from "@/pages/Login";
 import Roles from "@/pages/Roles";
+import SystemLogs from "@/pages/SystemLogs";
+import InstructorPortal from "@/pages/InstructorPortal";
 
 type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number };
 
@@ -68,6 +70,17 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function DashboardRoute() {
+  const { data: user } = useQuery<AuthUser | null>({
+    queryKey: ["auth-me"],
+    queryFn: async () => { try { return await apiFetch<AuthUser>("/auth/me"); } catch { return null; } },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  if (user?.role === "instructor") return <InstructorPortal />;
+  return <Dashboard />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -77,7 +90,7 @@ function Router() {
         <RequireAuth>
           <Layout>
             <Switch>
-              <Route path="/" component={Dashboard} />
+              <Route path="/" component={DashboardRoute} />
               <Route path="/students" component={Students} />
               <Route path="/students/:id/ledger" component={StudentLedger} />
               <Route path="/students/:id/idcard" component={StudentIdCard} />
@@ -94,6 +107,7 @@ function Router() {
               <Route path="/attendance" component={Attendance} />
               <Route path="/student-attendance" component={StudentAttendance} />
               <Route path="/roles" component={Roles} />
+              <Route path="/system-logs" component={SystemLogs} />
               <Route component={NotFound} />
             </Switch>
           </Layout>
