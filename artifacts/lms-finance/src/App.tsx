@@ -27,8 +27,11 @@ import Login from "@/pages/Login";
 import Roles from "@/pages/Roles";
 import SystemLogs from "@/pages/SystemLogs";
 import InstructorPortal from "@/pages/InstructorPortal";
+import InterneePortal from "@/pages/InterneePortal";
+import Internees from "@/pages/Internees";
+import InterneeDetail from "@/pages/InterneeDetail";
 
-type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number };
+type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number; interneeId?: number };
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,6 +81,7 @@ function DashboardRoute() {
     retry: false,
   });
   if (user?.role === "instructor") return <InstructorPortal />;
+  if (user?.role === "internee") return <InterneePortal />;
   return <Dashboard />;
 }
 
@@ -108,6 +112,8 @@ function Router() {
               <Route path="/student-attendance" component={StudentAttendance} />
               <Route path="/roles" component={Roles} />
               <Route path="/system-logs" component={SystemLogs} />
+              <Route path="/internees" component={Internees} />
+              <Route path="/internees/:id" component={InterneeDetail} />
               <Route component={NotFound} />
             </Switch>
           </Layout>

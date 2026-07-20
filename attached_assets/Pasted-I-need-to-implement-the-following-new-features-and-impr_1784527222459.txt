@@ -1,0 +1,304 @@
+I need to implement the following new features and improve existing functionality. Please ensure the new features integrate with the current system without breaking any existing functionality.
+
+Part 1: Instructor Earnings (Attendance/Class-wise)
+
+Currently, instructor earnings need to be improved.
+
+Requirements
+
+Instructor earnings must be calculated based on actual attended classes, not manually.
+
+Each lecture/class has its own payment amount.
+
+Logic
+
+For every instructor:
+
+Count total completed classes.
+Multiply by the instructor's per-class payment.
+Calculate earnings automatically.
+payment lecture wise works on the attendance and also on previous taken lectures
+
+Example:
+
+Per Class Payment = Rs. 1,000
+Classes Conducted = 18
+
+Instructor Earnings = Rs. 18,000
+
+Dashboard
+
+The dashboard should always show updated instructor earnings.
+
+Create dashboard cards such as:
+
+Total Instructor Expense
+Classes Conducted
+Average Cost Per Class
+Total Instructor Earnings
+Instructor-wise Earnings
+
+Whenever attendance or completed classes change, earnings should automatically recalculate.
+
+Part 2: Internee Portal
+
+Create a completely separate Internee Portal with its own login, permissions, and dashboard.
+
+Interns should only be able to access their own portal.
+
+Implement proper Role & Permission management.
+
+Roles:
+
+Admin
+Staff
+Instructor
+Student
+Internee
+
+Interns should never have access to Admin or Staff modules.
+
+Internee Dashboard
+
+After login, interns should see:
+
+Welcome Dashboard
+Current Status
+Today's Attendance
+Running Timer
+Assigned Tasks
+Assigned Projects
+Daily Reports
+Attendance History
+Project Reports
+Attendance System
+
+The attendance system should work like an employee attendance system.
+
+Interns should have:
+
+Check In
+One check-in allowed per day.
+Cannot check in multiple times.
+Once checked in, a live running timer starts.
+Show:
+Check-in time
+Current working duration
+Running clock
+Working Hours Configuration
+
+Admin can configure attendance mode.
+
+Support two modes:
+
+1. Hourly Mode
+
+Example:
+
+Required Hours = 5 Hours
+
+The timer counts until five hours are completed.
+
+2. Fixed Schedule
+
+Example:
+
+9:00 AM – 2:00 PM
+
+The system should compare attendance against scheduled timings.
+
+Admin can configure:
+
+Start Time
+End Time
+Required Hours
+Check Out
+
+Interns can check out only after submitting a Daily Report.
+
+Workflow:
+
+Check In
+
+↓
+
+Work Timer Running
+
+↓
+
+Submit Daily Report (Mandatory)
+
+↓
+
+Check Out Enabled
+
+If no report is submitted:
+
+Checkout button remains disabled.
+Daily Report Module
+
+Create a Daily Report page.
+
+Every report should include:
+
+Date
+Tasks completed
+Work summary
+Problems faced
+Learnings
+Hours worked
+Status
+
+Reports should be visible to:
+
+Admin
+Staff
+
+Interns can only view and edit their own reports.
+
+Task Management
+
+Admin and Staff can assign tasks to interns.
+
+Each task should contain:
+
+Title
+Description
+Priority
+Assigned Date
+Due Date
+Status
+
+Interns should be able to:
+
+View tasks
+Update task status
+Mark complete
+Add comments
+Project Management
+
+Interns can be assigned projects.
+
+Each project should have:
+
+Project Name
+Description
+Start Date
+Deadline
+Status
+Assigned By
+
+Interns should have a separate Project Report section.
+
+For every project they can submit:
+
+Progress Reports
+Final Report
+Files (if supported)
+Comments
+
+Project reports should be separate from Daily Reports.
+
+Attendance History
+
+Interns should see:
+
+Check-in Time
+Check-out Time
+Total Hours
+Daily Report Status
+Attendance Status
+
+Admin should see attendance of every intern.
+
+Reports History
+
+Interns should have a history page showing:
+
+Daily Reports
+Project Reports
+Attendance History
+Completed Tasks
+Admin Internee Management
+
+Create a complete Intern Management module.
+
+Admin should be able to:
+
+Add Intern
+Edit Intern
+Delete Intern
+Activate/Deactivate
+Assign Tasks
+Assign Projects
+View Attendance
+View Reports
+View Working Hours
+View Performance
+Experience Certificate
+
+Admin should be able to generate an Experience Certificate for any intern.
+
+The certificate should automatically include:
+
+Institute Logo
+Institute Name
+Intern Name
+Father's Name (if available)
+Unique Intern ID
+Department
+Position
+Start Date
+End Date
+Total Duration
+Performance
+Certificate Number
+Issue Date
+Authorized Signature
+QR Code for verification
+
+The certificate should be printable as a professional PDF.
+
+QR Code & Unique ID
+
+Every intern should automatically receive:
+
+Unique Intern ID (e.g., INT-2026-0001)
+QR Code linked to their profile/certificate
+
+The QR code should be printable on:
+
+ID Card
+Experience Certificate
+
+Admin should also be able to generate and print an Intern ID Card containing:
+
+Photo
+Name
+Intern ID
+Department
+Duration
+QR Code
+Institute Logo
+Notifications
+
+Interns should receive notifications for:
+
+New Task Assigned
+Project Assigned
+Attendance Reminder
+Daily Report Reminder
+Certificate Generated
+
+Admin should receive notifications when:
+
+Daily Report Submitted
+Project Report Submitted
+Intern Checked In
+Intern Checked Out
+General Requirements
+Do not break any existing functionality.
+Follow the existing design system and UI.
+Ensure all attendance, earnings, reports, and dashboard statistics update automatically in real time.
+Implement proper role-based access control so interns only see their own portal and data, while Admin and Staff have full management capabilities.
+Ensure all calculations (instructor earnings, attendance hours, working time, reports, and dashboard summaries) are accurate and synchronized across the application

@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, BookOpen, Receipt, FileText, CreditCard,
   GraduationCap, UserCheck, Wallet, Award, School, ClipboardCheck,
-  ShieldCheck, Globe, LogOut, LogIn, BookCheck, ScrollText,
+  ShieldCheck, Globe, LogOut, LogIn, BookCheck, ScrollText, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number };
+type AuthUser = { id: number; username: string; role: string; displayName: string; instructorId?: number; interneeId?: number };
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 type NavSection = {
@@ -68,6 +68,13 @@ const ADMIN_STAFF_SECTIONS: NavSection[] = [
     ],
   },
   {
+    label: "Internees",
+    staffVisible: true,
+    items: [
+      { href: "/internees", label: "Internees", icon: Briefcase },
+    ],
+  },
+  {
     label: "Admin",
     adminOnly: true,
     items: [
@@ -97,15 +104,27 @@ const INSTRUCTOR_SECTIONS: NavSection[] = [
   },
 ];
 
+const INTERNEE_SECTIONS: NavSection[] = [
+  {
+    label: "My Portal",
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+];
+
 export function Sidebar({ role }: { role?: string }) {
   const [location] = useLocation();
   const isAdmin = role === "admin";
   const isStaff = role === "staff";
   const isInstructor = role === "instructor";
+  const isInternee = role === "internee";
 
   let sections: NavSection[];
 
-  if (isInstructor) {
+  if (isInternee) {
+    sections = INTERNEE_SECTIONS;
+  } else if (isInstructor) {
     sections = INSTRUCTOR_SECTIONS;
   } else {
     sections = ADMIN_STAFF_SECTIONS.filter(section => {
@@ -191,6 +210,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     admin: "bg-red-100 text-red-700",
     staff: "bg-blue-100 text-blue-700",
     instructor: "bg-green-100 text-green-700",
+    internee: "bg-purple-100 text-purple-700",
   };
 
   return (

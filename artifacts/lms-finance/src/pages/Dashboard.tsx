@@ -13,6 +13,11 @@ import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+type InstructorEarning = {
+  id: number; name: string; paymentModel: string; lectureRate: number;
+  totalLectures: number; totalEarned: number; totalPaid: number; pendingEarnings: number;
+};
+
 type DashboardData = {
   totalStudents: number;
   activeStudents: number;
@@ -28,6 +33,10 @@ type DashboardData = {
   paidVouchers: number;
   partialVouchers: number;
   unpaidVouchers: number;
+  totalClassesConducted: number;
+  totalInstructorExpense: number;
+  avgCostPerClass: number;
+  instructorEarnings: InstructorEarning[];
   recentReceipts: Array<{
     id: number;
     studentName: string;
@@ -301,6 +310,101 @@ function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ── Instructor Earnings Section ── */}
+      {!isFiltered && (
+        <>
+          <div className="flex items-center gap-2 pt-2">
+            <UserCheck className="w-4 h-4 text-primary" />
+            <h2 className="text-base font-semibold">Instructor Earnings</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard
+              title="Total Instructor Expense"
+              value={formatCurrency(data?.totalInstructorExpense ?? 0)}
+              subtitle="Total earnings owed to all instructors"
+              icon={<Wallet className="w-4 h-4 text-amber-500" />}
+              loading={isLoading}
+              highlight="amber"
+            />
+            <MetricCard
+              title="Classes Conducted"
+              value={data?.totalClassesConducted ?? 0}
+              subtitle="Total lectures across all instructors"
+              icon={<BookCheck className="w-4 h-4 text-blue-500" />}
+              loading={isLoading}
+            />
+            <MetricCard
+              title="Avg Cost Per Class"
+              value={formatCurrency(data?.avgCostPerClass ?? 0)}
+              subtitle="Average instructor cost per lecture"
+              icon={<TrendingUp className="w-4 h-4 text-purple-500" />}
+              loading={isLoading}
+            />
+            <MetricCard
+              title="Total Paid to Instructors"
+              value={formatCurrency(data?.totalTeacherPayments ?? 0)}
+              subtitle="Sum of all instructor payments made"
+              icon={<CheckCircle2 className="w-4 h-4 text-green-500" />}
+              loading={isLoading}
+              highlight="green"
+            />
+          </div>
+          {(data?.instructorEarnings ?? []).filter(i => i.totalLectures > 0 || i.totalEarned > 0).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-primary" />Instructor-wise Earnings</CardTitle>
+                <CardDescription>Auto-calculated from attendance lectures and payment model</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Instructor</th>
+                        <th className="text-center px-4 py-2.5 font-medium text-muted-foreground">Model</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Classes</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Total Earned</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Total Paid</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Pending</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data?.instructorEarnings ?? []).map(i => (
+                        <tr key={i.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-medium">{i.name}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground capitalize">{i.paymentModel.replace("_", " ")}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-blue-600">{i.totalLectures}</td>
+                          <td className="px-4 py-3 text-right font-mono text-amber-600">{formatCurrency(i.totalEarned)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-green-600">{formatCurrency(i.totalPaid)}</td>
+                          <td className="px-4 py-3 text-right font-mono font-semibold">
+                            <span className={i.pendingEarnings > 0 ? "text-red-600" : "text-muted-foreground"}>
+                              {formatCurrency(i.pendingEarnings)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-muted/20 font-semibold border-t-2">
+                        <td className="px-4 py-3" colSpan={2}>Total</td>
+                        <td className="px-4 py-3 text-right text-blue-600">{data?.totalClassesConducted ?? 0}</td>
+                        <td className="px-4 py-3 text-right font-mono text-amber-600">{formatCurrency(data?.totalInstructorExpense ?? 0)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-green-600">{formatCurrency(data?.totalTeacherPayments ?? 0)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-red-600">
+                          {formatCurrency(Math.max(0, (data?.totalInstructorExpense ?? 0) - (data?.totalTeacherPayments ?? 0)))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Course breakdown table — only show when "All" selected */}

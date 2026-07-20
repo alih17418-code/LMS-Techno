@@ -76,7 +76,7 @@ const EMPTY_LECTURE = {
 type AttendanceRecord = {
   id: number; instructorId: number; attendanceDate: string;
   checkInTime: string; checkOutTime?: string; shift?: string;
-  className?: string; lectureCount: number; status: string; remarks?: string;
+  className?: string; classId?: number; lectureCount: number; status: string; remarks?: string;
 };
 
 type MonthlyLecture = {

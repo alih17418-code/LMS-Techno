@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, and, desc, type SQL } from "drizzle-orm";
 import { db, studentsTable, vouchersTable, receiptsTable, coursesTable, instructorsTable, instructorPaymentsTable, instructorAttendanceTable, classesTable } from "@workspace/db";
+import { instructorMonthlyLecturesTable } from "@workspace/db/schema";
 
 const router = Router();
 
@@ -11,13 +12,16 @@ const MONTH_NAMES = [
 
 // GET /reports/dashboard
 router.get("/reports/dashboard", async (_req, res) => {
-  const [allStudents, allVouchers, allReceipts, allCourses, allInstructorPayments, allClasses] = await Promise.all([
+  const [allStudents, allVouchers, allReceipts, allCourses, allInstructorPayments, allClasses, allInstructors, allAttendance, allMonthlyLectures] = await Promise.all([
     db.select().from(studentsTable),
     db.select().from(vouchersTable),
     db.select().from(receiptsTable),
     db.select().from(coursesTable),
     db.select().from(instructorPaymentsTable),
     db.select().from(classesTable),
+    db.select().from(instructorsTable),
+    db.select().from(instructorAttendanceTable),
+    db.select().from(instructorMonthlyLecturesTable),
   ]);
 
   const courseMap = new Map(allCourses.map(c => [c.id, c]));
@@ -111,6 +115,38 @@ router.get("/reports/dashboard", async (_req, res) => {
 
   const totalFeeGenerated = allVouchers.reduce((s, v) => s + Number(v.totalFee), 0);
 
+  // Instructor earnings breakdown
+  const instructorEarnings = allInstructors.map(inst => {
+    const payments = allInstructorPayments.filter(p => p.instructorId === inst.id);
+    const totalPaid = payments.reduce((s, p) => s + Number(p.amountPaid), 0);
+    // Count lectures from attendance (present days × lectureCount)
+    const attendanceRecords = allAttendance.filter(a => a.instructorId === inst.id && a.status === "present");
+    const attendanceLectures = attendanceRecords.reduce((s, a) => s + (a.lectureCount ?? 1), 0);
+    // Also count from monthly lectures log
+    const monthlyLectures = allMonthlyLectures.filter(l => l.instructorId === inst.id).reduce((s, l) => s + l.lecturesCount, 0);
+    const totalLectures = Math.max(attendanceLectures, monthlyLectures);
+    const totalEarned = inst.paymentModel === "per_lecture"
+      ? totalLectures * Number(inst.lectureRate)
+      : inst.paymentModel === "salary"
+        ? Number(inst.monthlySalary) // approximation (latest month)
+        : totalLectures * Number(inst.lectureRate);
+    const pendingEarnings = Math.max(0, totalEarned - totalPaid);
+    return {
+      id: inst.id,
+      name: inst.name,
+      paymentModel: inst.paymentModel,
+      lectureRate: Number(inst.lectureRate),
+      totalLectures,
+      totalEarned,
+      totalPaid,
+      pendingEarnings,
+    };
+  });
+
+  const totalClassesConducted = instructorEarnings.reduce((s, i) => s + i.totalLectures, 0);
+  const totalInstructorExpense = instructorEarnings.reduce((s, i) => s + i.totalEarned, 0);
+  const avgCostPerClass = totalClassesConducted > 0 ? Math.round(totalInstructorExpense / totalClassesConducted) : 0;
+
   return res.json({
     totalStudents: allStudents.length,
     activeStudents: activeStudents.length,
@@ -129,6 +165,10 @@ router.get("/reports/dashboard", async (_req, res) => {
     recentReceipts,
     courseBreakdown,
     batchBreakdown,
+    instructorEarnings,
+    totalClassesConducted,
+    totalInstructorExpense,
+    avgCostPerClass,
   });
 });
 

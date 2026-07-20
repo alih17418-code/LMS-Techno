@@ -14,3 +14,8 @@ export * from "./certificates";
 export * from "./budget_entries";
 export * from "./instructor_monthly_lectures";
 export * from "./system_logs";
+export * from "./internees";
+export * from "./internee_attendance";
+export * from "./daily_reports";
+export * from "./tasks";
+export * from "./projects";

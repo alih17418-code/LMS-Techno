@@ -13,6 +13,11 @@ import certificatesRouter from "./certificates";
 import classesRouter from "./classes";
 import attendanceRouter from "./attendance";
 import systemLogsRouter from "./system-logs";
+import interneesRouter from "./internees";
+import interneeAttendanceRouter from "./internee-attendance";
+import dailyReportsRouter from "./daily-reports";
+import tasksRouter from "./tasks";
+import projectsRouter from "./projects";
 
 const router: IRouter = Router();
 
@@ -30,5 +35,10 @@ router.use(certificatesRouter);
 router.use(classesRouter);
 router.use(attendanceRouter);
 router.use(systemLogsRouter);
+router.use(interneesRouter);
+router.use(interneeAttendanceRouter);
+router.use(dailyReportsRouter);
+router.use(tasksRouter);
+router.use(projectsRouter);
 
 export default router;

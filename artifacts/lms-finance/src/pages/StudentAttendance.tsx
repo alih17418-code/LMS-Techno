@@ -48,13 +48,7 @@ export default function StudentAttendance() {
     queryKey: ["student-attendance", selectedClass, selectedDate],
     queryFn: () => apiFetch(`/student-attendance?classId=${selectedClass}&date=${selectedDate}`),
     enabled: !!selectedClass,
-    onSuccess: (data) => {
-      const map: Record<number, string> = {};
-      data.forEach(r => { map[r.studentId] = r.status; });
-      setAttendanceMap(map);
-      setSaved(false);
-    },
-  } as any);
+  });
 
   const saveMutation = useMutation({
     mutationFn: () => apiFetch("/student-attendance/bulk", {

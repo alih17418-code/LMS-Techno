@@ -31,6 +31,7 @@ function toUserResponse(user: typeof usersTable.$inferSelect) {
     role: user.role,
     displayName: user.displayName,
     instructorId: user.instructorId ?? undefined,
+    interneeId: user.interneeId ?? undefined,
   };
 }
 
@@ -58,6 +59,7 @@ router.post("/auth/login", async (req, res) => {
   (req as any).session.role = user.role;
   (req as any).session.displayName = user.displayName;
   (req as any).session.instructorId = user.instructorId ?? null;
+  (req as any).session.interneeId = user.interneeId ?? null;
 
   syslog({ action: "login", entityType: "auth", entityId: user.id, description: `${user.displayName} (${user.role}) logged in`, req }).catch(() => {});
   return res.json(toUserResponse(user));
@@ -130,6 +132,8 @@ router.put("/auth/users/:id", requireAdmin, async (req, res) => {
   if (isActive !== undefined) update.isActive = String(isActive);
   if (password) update.passwordHash = hashPassword(String(password));
   if (instructorId !== undefined) update.instructorId = instructorId ? Number(instructorId) : null;
+  const { interneeId } = req.body;
+  if (interneeId !== undefined) (update as any).interneeId = interneeId ? Number(interneeId) : null;
 
   const [updated] = await db.update(usersTable).set(update).where(eq(usersTable.id, id)).returning();
   if (!updated) return res.status(404).json({ error: "User not found" });
