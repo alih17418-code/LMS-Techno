@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createHash } from "crypto";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
+import { syslog } from "../lib/syslog";
 
 const router = Router();
 
@@ -58,12 +59,15 @@ router.post("/auth/login", async (req, res) => {
   (req as any).session.displayName = user.displayName;
   (req as any).session.instructorId = user.instructorId ?? null;
 
+  syslog({ action: "login", entityType: "auth", entityId: user.id, description: `${user.displayName} (${user.role}) logged in`, req }).catch(() => {});
   return res.json(toUserResponse(user));
 });
 
 // POST /auth/logout
 router.post("/auth/logout", (req, res) => {
-  (req as any).session.destroy(() => {});
+  const session = (req as any).session;
+  syslog({ action: "logout", entityType: "auth", entityId: session?.userId, description: `${session?.displayName ?? "Unknown"} logged out`, req }).catch(() => {});
+  session.destroy(() => {});
   return res.json({ ok: true });
 });
 

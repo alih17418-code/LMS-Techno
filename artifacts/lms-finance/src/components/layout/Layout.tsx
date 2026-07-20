@@ -72,6 +72,7 @@ const ADMIN_STAFF_SECTIONS: NavSection[] = [
     adminOnly: true,
     items: [
       { href: "/roles", label: "Roles & Users", icon: ShieldCheck },
+      { href: "/system-logs", label: "System Logs", icon: ScrollText },
     ],
   },
 ];

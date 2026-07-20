@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatCurrency } from "@/lib/utils";
-import { ArrowLeft, Printer, Plus, Trash2, AlertCircle, User, Phone, MapPin, BookOpen, ClipboardList, TrendingUp, BookMarked, Filter } from "lucide-react";
+import { ArrowLeft, Printer, Plus, Trash2, AlertCircle, User, Phone, MapPin, BookOpen, ClipboardList, TrendingUp, BookMarked, Filter, School } from "lucide-react";
 import { printSalarySlip } from "@/lib/printSalarySlip";
 import { apiFetch } from "@/lib/api";
 
@@ -84,7 +84,7 @@ type MonthlyLecture = {
   lecturesCount: number; notes: string | null; monthName: string;
 };
 
-type Tab = "payments" | "attendance" | "lectures";
+type Tab = "payments" | "attendance" | "lectures" | "classwise";
 
 // Available years for lecture selection (current + past 5)
 const YEARS = Array.from({ length: 6 }, (_, i) => NOW.getFullYear() - i);
@@ -455,6 +455,13 @@ export default function InstructorDetail() {
             >
               <span className="flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Attendance Log</span>
             </button>
+            <button
+              onClick={() => { setActiveTab("classwise"); loadAttendance(); }}
+              className={cn("px-5 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                activeTab === "classwise" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+            >
+              <span className="flex items-center gap-2"><School className="w-4 h-4" /> Class Wise</span>
+            </button>
           </div>
 
           {/* ── Payment History Tab ── */}
@@ -739,6 +746,101 @@ export default function InstructorDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* ── Class Wise Tab ── */}
+          {activeTab === "classwise" && (() => {
+            const assignedClasses: Array<{ classId: number; className: string; courseName: string }> = (instructor as any)?.assignedClasses ?? [];
+            const classBreakdown = assignedClasses.map(cls => {
+              const records = attendList.filter(a => a.classId === cls.classId);
+              const lectures = records.reduce((s, a) => s + (a.lectureCount ?? 1), 0);
+              const daysPresent = records.filter(a => a.status === "present").length;
+              const daysAbsent = records.filter(a => a.status === "absent").length;
+              const earnings = paymentModel === "per_lecture" ? lectures * Number(lectureRate) : 0;
+              return { ...cls, lectures, daysPresent, daysAbsent, earnings };
+            });
+            const totalLecturesCW = classBreakdown.reduce((s, c) => s + c.lectures, 0);
+            const totalEarningsCW = classBreakdown.reduce((s, c) => s + c.earnings, 0);
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <School className="w-4 h-4 text-primary" /> Class-wise Breakdown
+                      </CardTitle>
+                      <CardDescription>
+                        Lecture counts and {paymentModel === "per_lecture" ? "earnings" : "attendance"} broken down per assigned class.
+                        {attendLoading && <span className="ml-2 text-muted-foreground">Loading attendance…</span>}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {assignedClasses.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                      <School className="w-8 h-8 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">No classes assigned to this instructor.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/30">
+                            <th className="text-left px-4 py-3 font-medium text-muted-foreground">Class</th>
+                            <th className="text-left px-4 py-3 font-medium text-muted-foreground">Course</th>
+                            <th className="text-center px-4 py-3 font-medium text-muted-foreground">Days Present</th>
+                            <th className="text-center px-4 py-3 font-medium text-muted-foreground">Days Absent</th>
+                            <th className="text-center px-4 py-3 font-medium text-muted-foreground">Lectures</th>
+                            {paymentModel === "per_lecture" && (
+                              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Earnings ({formatCurrency(Number(lectureRate))}/lecture)</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {classBreakdown.map(cls => (
+                            <tr key={cls.classId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                              <td className="px-4 py-3 font-medium">{cls.className}</td>
+                              <td className="px-4 py-3 text-muted-foreground">{cls.courseName}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-50 text-green-700 font-bold text-sm border border-green-200">
+                                  {cls.daysPresent}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={cn("inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm border",
+                                  cls.daysAbsent > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-muted text-muted-foreground border-border")}>
+                                  {cls.daysAbsent}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-50 text-purple-700 font-bold text-sm border border-purple-200">
+                                  {cls.lectures}
+                                </span>
+                              </td>
+                              {paymentModel === "per_lecture" && (
+                                <td className="px-4 py-3 text-right font-mono font-semibold text-green-600">
+                                  {formatCurrency(cls.earnings)}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                          <tr className="bg-muted/20 font-semibold border-t-2">
+                            <td className="px-4 py-3" colSpan={2}>Total</td>
+                            <td className="px-4 py-3 text-center text-green-700">{classBreakdown.reduce((s, c) => s + c.daysPresent, 0)}</td>
+                            <td className="px-4 py-3 text-center text-red-700">{classBreakdown.reduce((s, c) => s + c.daysAbsent, 0)}</td>
+                            <td className="px-4 py-3 text-center text-purple-700">{totalLecturesCW}</td>
+                            {paymentModel === "per_lecture" && (
+                              <td className="px-4 py-3 text-right font-mono text-green-600">{formatCurrency(totalEarningsCW)}</td>
+                            )}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </>
       )}
 

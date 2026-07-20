@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, instructorAttendanceTable, instructorsTable, classesTable, studentAttendanceTable, studentsTable, instructorClassesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, requireAdminOrStaff, getSessionUser } from "../middlewares/auth";
+import { syslog } from "../lib/syslog";
 
 const router = Router();
 
@@ -75,6 +76,7 @@ router.post("/attendance/checkin", requireAuth, async (req, res) => {
     remarks: remarks ?? null,
   }).returning();
 
+  syslog({ action: "checkin", entityType: "attendance", entityId: record.id, description: `${instructor.name} checked in at ${checkInTime} on ${today}${className ? ` (${className})` : ""}`, req }).catch(() => {});
   return res.status(201).json(toAttendance(record));
 });
 
@@ -91,6 +93,7 @@ router.put("/attendance/:id/checkout", requireAuth, async (req, res) => {
     .returning();
 
   if (!updated) return res.status(404).json({ error: "Record not found" });
+  syslog({ action: "checkout", entityType: "attendance", entityId: updated.id, description: `${updated.instructorName} checked out at ${checkOutTime} on ${updated.attendanceDate}`, req }).catch(() => {});
   return res.json(toAttendance(updated));
 });
 
